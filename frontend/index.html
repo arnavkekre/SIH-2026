@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rotax 912 Gear Animation</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #1a1a1a;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+        canvas {
+            display: block;
+        }
+        #stroke-hud {
+            position: fixed;
+            top: 16px;
+            left: 16px;
+            background: rgba(0,0,0,0.55);
+            border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 8px;
+            padding: 10px 14px;
+            color: #eee;
+            font-size: 13px;
+            line-height: 1.7;
+            backdrop-filter: blur(4px);
+            pointer-events: none;
+            z-index: 10;
+        }
+        #stroke-hud .row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            white-space: nowrap;
+        }
+        #stroke-hud .swatch {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+            flex: none;
+            box-shadow: 0 0 6px currentColor;
+        }
+        #stroke-hud .label {
+            width: 46px;
+            opacity: 0.8;
+        }
+        #stroke-hud .stroke-name {
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <div id="stroke-hud">
+        <div class="row"><span class="label">Cyl 1</span><span class="swatch" id="dot0"></span><span class="stroke-name" id="name0">--</span></div>
+        <div class="row"><span class="label">Cyl 2</span><span class="swatch" id="dot1"></span><span class="stroke-name" id="name1">--</span></div>
+        <div class="row"><span class="label">Cyl 3</span><span class="swatch" id="dot2"></span><span class="stroke-name" id="name2">--</span></div>
+        <div class="row"><span class="label">Cyl 4</span><span class="swatch" id="dot3"></span><span class="stroke-name" id="name3">--</span></div>
+    </div>
+
+    <script async src="https://unpkg.com/es-module-shims@1.8.0/dist/es-module-shims.js"></script>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(40, 20, 50);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        document.body.appendChild(renderer.domElement);
+
+        const pmremGenerator = new THREE.PMREMGenerator(renderer);
+        scene.environment = pmremGenerator.fromScene(new RoomEnvironment(), 0.04).texture;
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+
+        const ambientLight = new THREE.AmbientLight(0xffffff, 1.5);
+        scene.add(ambientLight);
+
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 2);
+        directionalLight.position.set(10, 20, 10);
+        scene.add(directionalLight);
+
+        let propGear, fuelPumpGear, alternator, crankshaftfrontend, waterimpeller;
+        let mixer, fuelimpeller, alternatorcover, mainAction;
+        let Case1, Case2, Case3, Case4, Cover1, Cover2, Cover3, Cover4;
+        const engineRPM = 10;
+
+
+        const firingOrder = [0, 2, 3, 1];
+        const cylinderFireTime = [0, 0, 0, 0];
+        firingOrder.forEach((cyl, i) => { cylinderFireTime[cyl] = i * 0.25; });
+
+        const STROKE_COLORS = {
+            power:       0xffffff,
+            exhaust:     0x999999,
+            intake:      0x3399ff,
+            compression: 0xffaa33
+        };
+        const STROKE_NAMES = { power: 'Power', exhaust: 'Exhaust', intake: 'Intake', compression: 'Compression' };
+
+        const EFFECT_SCALE = 4
+
+        const CYL_RADIUS = 2.2 * EFFECT_SCALE
+        const CYL_DEPTH = 2.0 * EFFECT_SCALE
+        const PARTICLES_PER_CYL = 300;
+        const LAYER_COUNT = 300
+        const GROW_FRACTION = 0.4
+
+        const leadColor = new THREE.Color(0xffffff)
+        const bodyColor = new THREE.Color(0xff6600)
+
+        window.combustionLights = [];
+        window.particleSystems = [];
+        window.fireLayers = [];
+        window.fireBrightness = [];
+        window.glowSprites = []
+
+        const hudDots = [0, 1, 2, 3].map(i => document.getElementById('dot' + i));
+        const hudNames = [0, 1, 2, 3].map(i => document.getElementById('name' + i));
+
+        function makeSoftDotTexture() {
+            const size = 64;
+            const canvas = document.createElement('canvas');
+            canvas.width = size;
+            canvas.height = size;
+            const ctx = canvas.getContext('2d');
+            const grad = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+            grad.addColorStop(0.0, 'rgba(255,255,255,1)');
+            grad.addColorStop(0.4, 'rgba(255,255,255,0.7)');
+            grad.addColorStop(1.0, 'rgba(255,255,255,0)');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, size, size);
+            const tex = new THREE.CanvasTexture(canvas);
+            tex.needsUpdate = true;
+            return tex;
+        }
+        function makeFlowTexture(hexColor) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 128; 
+    canvas.height = 128;
+    const ctx = canvas.getContext('2d');
+    
+    ctx.fillStyle = '#111111';
+    ctx.fillRect(0, 0, 128, 128);
+    
+    ctx.fillStyle = hexColor;
+    for(let i = 0; i < 128; i += 32) {
+        ctx.fillRect(i, 0, 16, 128);
+    }
+    
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.wrapT = THREE.RepeatWrapping;
+    return tex;
+}
+
+const waterTex = makeFlowTexture('#00aaff');
+const fuelTex = makeFlowTexture('#ffcc00');
+window.fluidMaterials = [];
+        const softDotTexture = makeSoftDotTexture();
+
+        const loader = new GLTFLoader();
+        loader.load(
+            '/3D_Models/rotax912engine.glb',
+            (gltf) => {
+                const model = gltf.scene;
+                mixer = new THREE.AnimationMixer(model);
+
+                if (gltf.animations.length > 0) {
+                    const nativeDuration = gltf.animations[0].duration;
+                    const targetRPS = engineRPM / 60;
+                    mixer.timeScale = targetRPS * nativeDuration;
+                }
+
+                gltf.animations.forEach((clip) => {
+                    mainAction = mixer.clipAction(clip);
+                    mainAction.play();
+                });
+
+                propGear = model.getObjectByName('prop_gear');
+                fuelPumpGear = model.getObjectByName('fuel_pump_gear');
+                alternator = model.getObjectByName('crankshaft_alternator_end');
+                crankshaftfrontend = model.getObjectByName('crankshaft_reduction_end');
+                fuelimpeller = model.getObjectByName('fuel_impeller');
+                alternatorcover = model.getObjectByName('alternater');
+                waterimpeller = model.getObjectByName('water_pump_impeller');
+
+                Case1 = model.getObjectByName('cylinder_head_case')
+                Case2 = model.getObjectByName('cylinder_head_case001')
+                Case3 = model.getObjectByName('cylinder_head_case002')
+                Case4 = model.getObjectByName('cylinder_head_case003')
+                Cover1 = model.getObjectByName('cylinder_head')
+                Cover2 = model.getObjectByName('cylinder_head001')
+                Cover3 = model.getObjectByName('cylinder_head002')
+                Cover4 = model.getObjectByName('cylinder_head003')
+                const waterPipeNames = ['water_pipes', 'water_pipes_2'];
+const fuelPipeNames = ['fuel_pipe_left', 'fuel_pipe_right'];
+
+function setupPipes(names, texture, speed) {
+    names.forEach((name) => {
+        const pipe = model.getObjectByName(name);
+        if (pipe && pipe.material) {
+            pipe.material = pipe.material.clone();
+            pipe.material.map = texture;
+            pipe.material.emissiveMap = texture;
+            pipe.material.emissive = new THREE.Color(0xffffff);
+            pipe.material.emissiveIntensity = 0.8;
+            window.fluidMaterials.push({ mat: pipe.material, speed: speed });
+        }
+    });
+}
+
+setupPipes(waterPipeNames, waterTex, 0.5); 
+setupPipes(fuelPipeNames, fuelTex, 0.8);
+                function makeGlass(obj, opacityLevel) {
+    if (!obj) return;
+    
+    obj.traverse((child) => {
+        if (child.isMesh && child.material) {
+            child.material = child.material.clone();
+            child.material.transparent = true;
+            child.material.opacity = opacityLevel;
+            child.material.depthWrite = false;         }
+    });
+}
+                const leftCase = model.getObjectByName('engine_front1')
+                const rightCase = model.getObjectByName('cylinder_case_right')
+                const headCase1 = model.getObjectByName('cylinder_case_left')
+                const shellOpacity = 0.3
+makeGlass(leftCase, shellOpacity);
+makeGlass(rightCase, shellOpacity);
+makeGlass(headCase1, shellOpacity);
+makeGlass(alternatorcover, shellOpacity);
+makeGlass(Case1, shellOpacity)
+makeGlass(Case2, shellOpacity);
+makeGlass(Case3, shellOpacity);
+makeGlass(Case4, shellOpacity);
+makeGlass(Cover1, shellOpacity);
+makeGlass(Cover2, shellOpacity);
+makeGlass(Cover3, shellOpacity);
+makeGlass(Cover4, shellOpacity);
+
+                const cylinderNames = ['cylinder', 'cylinder001', 'cylinder002', 'cylinder003'];
+
+                const fireMaterial = new THREE.PointsMaterial({
+            color: 0xffffff,
+            map: softDotTexture,
+            vertexColors: true,
+            size: 3.2 * EFFECT_SCALE,
+            transparent: true,
+            opacity: 1.0,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false
+        });
+
+                const glowSpriteMaterial = new THREE.SpriteMaterial({
+                    map: softDotTexture,
+                    color: 0x3399ff,
+                    transparent: true,
+                    opacity: 0,
+                    blending: THREE.AdditiveBlending,
+                    depthWrite: false
+                });
+
+                cylinderNames.forEach((name) => {
+                    const cyl = model.getObjectByName(name);
+                    if (cyl) {
+                        const spark = new THREE.PointLight(0xff4400, 0, 25);
+                        spark.position.set(0, 2, 2.5);
+                        cyl.add(spark);
+                        window.combustionLights.push(spark);
+
+                        const geometry = new THREE.BufferGeometry();
+                        const positions = new Float32Array(PARTICLES_PER_CYL * 3);
+                        const colors = new Float32Array(PARTICLES_PER_CYL * 3)
+                        const layers = new Float32Array(PARTICLES_PER_CYL);
+                        const brightness = new Float32Array(PARTICLES_PER_CYL);
+
+                        for (let i = 0; i < PARTICLES_PER_CYL; i++) {
+                            const theta = Math.random() * Math.PI * 2;
+                            const rad = CYL_RADIUS * Math.sqrt(Math.random())
+                            const depth = (Math.random() - 0.5) * CYL_DEPTH;
+
+                            positions[i * 3] = Math.cos(theta) * rad;
+                            positions[i * 3 + 1] = depth;
+                            positions[i * 3 + 2] = Math.sin(theta) * rad;
+
+                            const normalizedR = rad / CYL_RADIUS
+                            layers[i] = Math.min(LAYER_COUNT - 1, Math.floor(normalizedR * LAYER_COUNT));
+                            brightness[i] = 0.7 + Math.random() * 0.3;
+                        }
+
+                        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+                        geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+                        const particles = new THREE.Points(geometry, fireMaterial);
+                        particles.position.set(0, 2, 2.5);
+                        particles.visible = false;
+                        cyl.add(particles);
+                        window.particleSystems.push(particles);
+                        window.fireLayers.push(layers);
+                        window.fireBrightness.push(brightness);
+
+
+                        const glow = new THREE.Sprite(glowSpriteMaterial.clone());
+                        glow.position.set(0, 2, 2.5);
+                        glow.scale.set(4, 4, 4);
+                        cyl.add(glow);
+                        window.glowSprites.push(glow);
+                    }
+                });
+
+                const box = new THREE.Box3().setFromObject(model);
+                const center = box.getCenter(new THREE.Vector3());
+                model.position.sub(center);
+
+                scene.add(model);
+            },
+            undefined,
+            (error) => console.error(error)
+        );
+
+        const clock = new THREE.Clock();
+        const tmpColor = new THREE.Color();
+
+        function updateFlameFront(cylIndex, t) {
+            const particles = window.particleSystems[cylIndex];
+            const layers = window.fireLayers[cylIndex];
+            const brightnessArr = window.fireBrightness[cylIndex];
+            const colorAttr = particles.geometry.getAttribute('color');
+            const colorArray = colorAttr.array;
+
+            let growFront, burnFront;
+            if (t <= GROW_FRACTION) {
+                growFront = (t / GROW_FRACTION) * LAYER_COUNT;
+                burnFront = -1;
+            } else {
+                growFront = LAYER_COUNT;
+                burnFront = ((t - GROW_FRACTION) / (1 - GROW_FRACTION)) * LAYER_COUNT;
+            }
+
+            for (let i = 0; i < layers.length; i++) {
+                const layer = layers[i];
+                const lit = layer < growFront && layer >= burnFront;
+
+                if (!lit) {
+                    colorArray[i * 3] = 0;
+                    colorArray[i * 3 + 1] = 0;
+                    colorArray[i * 3 + 2] = 0;
+                    continue;
+                }
+
+                const isLeadingEdge = (growFront - layer) < 1.5 && burnFront < 0;
+                tmpColor.copy(isLeadingEdge ? leadColor : bodyColor);
+                const b = brightnessArr[i];
+                colorArray[i * 3] = tmpColor.r * b;
+                colorArray[i * 3 + 1] = tmpColor.g * b;
+                colorArray[i * 3 + 2] = tmpColor.b * b;
+            }
+
+            colorAttr.needsUpdate = true;
+        }
+
+        function updateCylinderStroke(cylIndex, localPhase) {
+            const light = window.combustionLights[cylIndex];
+            const fire = window.particleSystems[cylIndex];
+            const glow = window.glowSprites[cylIndex];
+
+            let strokeKey;
+
+            if (localPhase < 0.25) {
+                strokeKey = 'power';
+                const t = localPhase / 0.25;
+                fire.visible = true;
+                updateFlameFront(cylIndex, t);
+                light.color.setHex(0xff5500);
+                light.intensity = 90 * Math.max(0, 1 - t) * (1 - t); 
+                glow.material.opacity = 0;
+            }else if (localPhase < 0.5) {
+                strokeKey = 'exhaust';
+                const rel = (localPhase - 0.25) / 0.25;
+                fire.visible = false;
+                light.color.setHex(STROKE_COLORS.exhaust);
+                light.intensity = 2.0 * (1 - rel);
+                glow.material.color.setHex(STROKE_COLORS.exhaust);
+                glow.scale.setScalar((4 + rel * 3.5) * EFFECT_SCALE)
+                glow.material.opacity = 0.35 * (1 - rel);
+            } else if (localPhase < 0.75) {
+                strokeKey = 'intake';
+                const rel = (localPhase - 0.5) / 0.25;
+                fire.visible = false;
+                const pulse = Math.sin(rel * Math.PI);
+                light.color.setHex(STROKE_COLORS.intake);
+                light.intensity = pulse * 1.6;
+                glow.material.color.setHex(STROKE_COLORS.intake);
+                glow.scale.setScalar((3.5 + pulse * 0.8) * EFFECT_SCALE)
+                glow.material.opacity = 0.3 * pulse;
+            } else {
+                strokeKey = 'compression';
+                const rel = (localPhase - 0.75) / 0.25
+                fire.visible = false
+                light.color.setHex(STROKE_COLORS.compression)
+                light.intensity = rel * rel * 3.0
+                glow.material.color.setHex(STROKE_COLORS.compression)
+                glow.scale.setScalar((4.3 - rel * 1.0) * EFFECT_SCALE)
+                glow.material.opacity = 0.15 + rel * rel * 0.35;
+            }
+
+            const stroke = STROKE_NAMES[strokeKey];
+            tmpColor.setHex(strokeKey === 'power' ? 0xff6600 : STROKE_COLORS[strokeKey]);
+            hudDots[cylIndex].style.background = '#' + tmpColor.getHexString();
+            hudDots[cylIndex].style.color = '#' + tmpColor.getHexString();
+            hudNames[cylIndex].textContent = stroke;
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const delta = clock.getDelta();
+            const baseRotationSpeed = (engineRPM / 60) * Math.PI * 2 * delta;
+
+            if (mixer && mainAction) {
+                mixer.update(delta);
+
+                const progress = mainAction.time / mainAction.getClip().duration;
+                const timingOffset = 0.15;
+                const syncedProgress = (progress + timingOffset) % 1;
+
+                if (window.combustionLights.length === 4) {
+                    for (let cyl = 0; cyl < 4; cyl++) {
+                        const localPhase = ((syncedProgress - cylinderFireTime[cyl]) % 1 + 1) % 1;
+                        updateCylinderStroke(cyl, localPhase);
+                    }
+                }
+            }
+if (window.fluidMaterials) {
+    window.fluidMaterials.forEach((item) => {
+        item.mat.map.offset.x -= baseRotationSpeed * item.speed;
+    });
+}
+
+            if (propGear) propGear.rotation.y += baseRotationSpeed / 2.43;
+            if (fuelPumpGear) fuelPumpGear.rotation.y -= baseRotationSpeed * 0.8;
+            if (alternator) alternator.rotation.y -= baseRotationSpeed * 1.5;
+            if (crankshaftfrontend) crankshaftfrontend.rotation.y -= baseRotationSpeed;
+            if (fuelimpeller) fuelimpeller.rotation.x += baseRotationSpeed * 1.2;
+            if (waterimpeller) waterimpeller.rotation.y -= baseRotationSpeed * 1.2;
+
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        animate();
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html>
