@@ -1,0 +1,22 @@
+# Health Index formula weights - deliberately configurable, not hard-coded,
+# per the original spec. Weights must sum to 1.0 (validated at load time).
+degradation:
+  weights:
+    anomaly_score: 0.35        # from the Phase 3 ensemble anomaly detector
+    fault_probability: 0.40    # max probability across the 8 Phase 4 fault heads (strongest signal)
+    residual_severity: 0.20    # aggregated relative-residual magnitude
+    # trend_severity kept deliberately LOW: at this simulation's compressed
+    # 1-minute/1Hz timescale, trend barely discriminates normal from faulted
+    # rows even after smoothing (see health_index.py docstring). Kept in the
+    # formula for conceptual completeness and because it should matter more
+    # with longer real missions - revisit this weight if mission duration
+    # is extended later.
+    trend_severity: 0.05
+
+  # squashing scales: how large a raw signal needs to be before it saturates
+  # toward "severe" (1.0). Calibrated against actual normal-vs-fault
+  # distributions in this dataset - re-validate with
+  # scripts/compute_health.py if you change fault injection magnitudes,
+  # mission duration, or sample rate in the generator.
+  residual_severity_scale: 0.5
+  trend_severity_scale: 2.0

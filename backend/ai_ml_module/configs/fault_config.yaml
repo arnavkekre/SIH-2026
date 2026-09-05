@@ -1,0 +1,56 @@
+# Fault taxonomy for PS54
+# Treated as MULTI-LABEL, not multi-class: an engine can exhibit more than
+# one fault simultaneously (e.g. OVERHEATING_TREND + COOLING_DEGRADATION
+# are correlated, not mutually exclusive).
+
+faults:
+  F01:
+    code: MISFIRE
+    description: "Intermittent combustion failure in one or more cylinders"
+    primary_signals: [egt_c, vibration_g, rpm]
+
+  F02:
+    code: INJECTOR_ABNORMALITY
+    description: "Fuel injector delivering incorrect quantity/timing"
+    primary_signals: [fuel_flow_lph, injection_timing_deg, egt_c]
+
+  F03:
+    code: COOLING_DEGRADATION
+    description: "Reduced cooling efficiency causing gradual thermal rise"
+    primary_signals: [cht_c, egt_c, ambient_temperature_c]
+
+  F04:
+    code: LUBRICATION_ISSUE
+    description: "Oil pressure/temperature deviating from healthy operating band"
+    primary_signals: [oil_pressure_kpa, oil_temperature_c]
+
+  F05:
+    code: SENSOR_DRIFT
+    description: "Sensor reading diverging from physically plausible / twin-expected values without a real mechanical cause"
+    primary_signals: ["*_residual_persistent_bias"]
+
+  F06:
+    code: COMBUSTION_INSTABILITY
+    description: "Irregular combustion cycle-to-cycle variation"
+    primary_signals: [egt_c, vibration_g, fuel_flow_lph]
+
+  F07:
+    code: OVERHEATING_TREND
+    description: "Sustained upward thermal trend, may precede a hard limit breach"
+    primary_signals: [cht_c, egt_c, oil_temperature_c]
+
+  F08:
+    code: ABNORMAL_VIBRATION
+    description: "Mechanical imbalance, bearing wear, or mounting looseness"
+    primary_signals: [vibration_g, rpm]
+
+severity_bands:
+  LOW: [0.0, 0.4]
+  MEDIUM: [0.4, 0.7]
+  HIGH: [0.7, 1.0]
+
+health_status_bands:
+  HEALTHY: [80, 100]
+  WARNING: [60, 80]
+  DEGRADING: [35, 60]
+  CRITICAL: [0, 35]

@@ -1,0 +1,27 @@
+# Conventional static safety limits (what a traditional threshold-based
+# monitoring system would use). These deliberately mirror realistic
+# datasheet-style limits so we can honestly demonstrate: "value still inside
+# this limit, but our digital-twin residual already flagged it."
+static_limits:
+  # Set with real margin above observed healthy peak (~181C during TAKEOFF/CLIMB
+  # in this simulation) - a redline sitting close to normal operating peaks
+  # would cause nuisance trips on totally healthy engines. Real aero engine
+  # CHT redlines typically carry 30-50C+ margin above normal cruise/takeoff temps.
+  cht_c: { max: 215 }
+  egt_c: { max: 850 }
+  oil_pressure_kpa: { min: 150 }
+  oil_temperature_c: { max: 120 }
+  vibration_g: { max: 1.0 }
+
+# Anomaly detector thresholds
+robust_zscore:
+  feature_threshold: 3.5      # per-feature robust z beyond this counts as deviant
+  score_threshold: 0.5        # aggregated 0-1 score above this = anomaly flagged
+
+isolation_forest:
+  contamination: 0.05         # expected proportion of anomalous rows in training data
+  score_threshold: 0.5
+
+ensemble:
+  # final anomaly_score = max(zscore_score, if_score) by default (see detector.py)
+  detection_threshold: 0.5
