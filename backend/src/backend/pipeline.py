@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import os
+import sys
+import threading
 from pathlib import Path
 from typing import Any, Optional
 
@@ -8,25 +11,53 @@ import numpy as np
 
 
 # ============================================================
-# Paths
+# PATHS
 # ============================================================
 
 # pipeline.py
-#     backend/src/backend/pipeline.py
+#
+# backend/
+# └── src/
+#     └── backend/
+#         └── pipeline.py
 #
 # parents[0] = backend/src/backend
 # parents[1] = backend/src
 # parents[2] = backend
-#
+
 BACKEND_DIR = Path(__file__).resolve().parents[2]
 
+# Legacy model location
 MODEL_DIR = BACKEND_DIR / "models"
-
 FAULT_MODEL_PATH = MODEL_DIR / "fault_classifier.joblib"
+
+# New AI/ML module
+AIML_ROOT = BACKEND_DIR / "ai_ml_module"
+
+AIML_ANOMALY_MODEL_PATH = (
+    AIML_ROOT
+    / "models"
+    / "anomaly"
+    / "anomaly_detector.joblib"
+)
+
+AIML_FAULT_MODEL_PATH = (
+    AIML_ROOT
+    / "models"
+    / "faults"
+    / "fault_classifier.joblib"
+)
+
+AIML_RUL_MODEL_PATH = (
+    AIML_ROOT
+    / "models"
+    / "rul"
+    / "rul_regressor.joblib"
+)
 
 
 # ============================================================
-# ML model
+# LEGACY ML MODEL
 # ============================================================
 
 _fault_model: Optional[Any] = None
@@ -34,16 +65,10 @@ _fault_model: Optional[Any] = None
 
 def load_fault_model() -> Optional[Any]:
     """
-    Load the trained fault-classification model.
+    Load the legacy fault-classification model once.
 
-    The model is loaded once and then reused for subsequent
-    telemetry records.
-
-    If the model does not exist yet, the pipeline continues
-    without ML inference.
-
-    This is useful during development because your teammate
-    may not have supplied the final .joblib model yet.
+    This model is used only as a fallback when the new
+    AI/ML module is unavailable.
     """
 
     global _fault_model
@@ -53,10 +78,12 @@ def load_fault_model() -> Optional[Any]:
 
     if not FAULT_MODEL_PATH.exists():
         print(
-            f"[ML] Model not found: {FAULT_MODEL_PATH}"
+            f"[ML] Legacy model not found: "
+            f"{FAULT_MODEL_PATH}"
         )
         print(
-            "[ML] Continuing without fault classification."
+            "[ML] Continuing without legacy "
+            "fault classification."
         )
         return None
 
@@ -66,43 +93,404 @@ def load_fault_model() -> Optional[Any]:
         )
 
         print(
-            f"[ML] Loaded model: {FAULT_MODEL_PATH}"
+            f"[ML] Loaded legacy model: "
+            f"{FAULT_MODEL_PATH}"
         )
 
         return _fault_model
 
     except Exception as exc:
         print(
-            f"[ML] Failed to load model: {exc}"
+            f"[ML] Failed to load legacy model: "
+            f"{exc}"
         )
+
         return None
 
 
 # ============================================================
-# Utility helpers
+# FULL AI/ML MODULE
+# ============================================================
+
+_aiml_service: Optional[Any] = None
+_aiml_load_attempted = False
+
+_mission_buffers: dict[
+    str,
+    list[dict[str, Any]],
+] = {}
+
+_mission_buffers_lock = threading.Lock()
+
+MAX_TRAJECTORY_BUFFER = 300
+
+
+# ============================================================
+# AI/ML TELEMETRY FIELDS
+# ============================================================
+
+AIML_TELEMETRY_FIELDS = [
+    "timestamp_s",
+    "engine_id",
+    "mission_id",
+    "mission_phase",
+    "throttle_pct",
+    "altitude_m",
+    "ambient_temperature_c",
+    "rpm",
+    "cht_c",
+    "egt_c",
+    "oil_pressure_kpa",
+    "oil_temperature_c",
+    "fuel_flow_lph",
+    "vibration_g",
+    "alternator_voltage_v",
+    "battery_voltage_v",
+    "injection_timing_deg",
+]
+
+
+# ============================================================
+# LOAD AI/ML SERVICE
+# ============================================================
+
+def load_aiml_service() -> Optional[Any]:
+    """
+    Lazily load the complete AI/ML service.
+
+    The service contains:
+
+    - anomaly detection
+    - fault classification
+    - health estimation
+    - RUL prediction
+
+    The service is loaded once and reused.
+    """
+
+    global _aiml_service
+    global _aiml_load_attempted
+
+    if _aiml_service is not None:
+        return _aiml_service
+
+    if _aiml_load_attempted:
+        return None
+
+    _aiml_load_attempted = True
+
+    # --------------------------------------------------------
+    # Check AI/ML project
+    # --------------------------------------------------------
+
+    if not AIML_ROOT.exists():
+        print(
+            f"[AIML] Module not found: "
+            f"{AIML_ROOT}"
+        )
+
+        return None
+
+    # --------------------------------------------------------
+    # Check required models
+    # --------------------------------------------------------
+
+    required_models = [
+        AIML_ANOMALY_MODEL_PATH,
+        AIML_FAULT_MODEL_PATH,
+        AIML_RUL_MODEL_PATH,
+    ]
+
+    missing_models = [
+        path
+        for path in required_models
+        if not path.exists()
+    ]
+
+    if missing_models:
+        print(
+            "[AIML] Missing trained model(s):"
+        )
+
+        for path in missing_models:
+            print(
+                f"       {path}"
+            )
+
+        print(
+            "[AIML] AI/ML module disabled."
+        )
+
+        return None
+
+    # --------------------------------------------------------
+    # Add AI/ML root to Python path
+    # --------------------------------------------------------
+
+    aiml_root_string = str(AIML_ROOT)
+
+    if aiml_root_string not in sys.path:
+        sys.path.insert(
+            0,
+            aiml_root_string,
+        )
+
+    original_cwd = os.getcwd()
+
+    try:
+        os.chdir(AIML_ROOT)
+
+        from src.inference.service import (
+            TelemetryMLService,
+        )
+
+        _aiml_service = TelemetryMLService(
+            anomaly_model_path=(
+                AIML_ANOMALY_MODEL_PATH
+            ),
+            fault_model_path=(
+                AIML_FAULT_MODEL_PATH
+            ),
+            rul_model_path=(
+                AIML_RUL_MODEL_PATH
+            ),
+        )
+
+        print(
+            "[AIML] Successfully loaded:"
+        )
+        print(
+            "       - anomaly detector"
+        )
+        print(
+            "       - fault classifier"
+        )
+        print(
+            "       - RUL regressor"
+        )
+
+        return _aiml_service
+
+    except Exception as exc:
+        print(
+            f"[AIML] Failed to load AI/ML module: "
+            f"{exc}"
+        )
+
+        return None
+
+    finally:
+        os.chdir(original_cwd)
+
+
+# ============================================================
+# TRAJECTORY BUFFER
+# ============================================================
+
+def _buffer_telemetry(
+    telemetry: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """
+    Store telemetry history for each mission.
+
+    The AI/ML module requires a trajectory rather than only
+    the current telemetry point because some features depend
+    on temporal history.
+    """
+
+    mission_id = str(
+        telemetry.get(
+            "mission_id",
+            "UNKNOWN",
+        )
+    )
+
+    point = {
+        field: telemetry.get(field)
+        for field in AIML_TELEMETRY_FIELDS
+    }
+
+    with _mission_buffers_lock:
+
+        buffer = _mission_buffers.setdefault(
+            mission_id,
+            [],
+        )
+
+        buffer.append(point)
+
+        # Keep only the most recent records.
+        if len(buffer) > MAX_TRAJECTORY_BUFFER:
+
+            del buffer[
+                : len(buffer)
+                - MAX_TRAJECTORY_BUFFER
+            ]
+
+        return list(buffer)
+
+
+# ============================================================
+# CLEAR MISSION BUFFER
+# ============================================================
+
+def clear_mission_buffer(
+    mission_id: str,
+) -> None:
+    """
+    Clear stored telemetry history for a mission.
+
+    Useful when a mission finishes.
+    """
+
+    with _mission_buffers_lock:
+        _mission_buffers.pop(
+            str(mission_id),
+            None,
+        )
+
+
+def clear_all_mission_buffers() -> None:
+    """
+    Clear all stored mission trajectories.
+    """
+
+    with _mission_buffers_lock:
+        _mission_buffers.clear()
+
+
+# ============================================================
+# RUN FULL AI/ML
+# ============================================================
+
+def run_aiml(
+    telemetry: dict[str, Any],
+) -> dict[str, Any]:
+    """
+    Run the complete AI/ML pipeline.
+
+    Returns:
+
+        anomaly_score
+        top_fault
+        fault_probability
+        fault_severity
+        health_score
+        health_status
+        predicted_rul_seconds
+        predicted_rul_minutes
+        rul_status
+    """
+
+    service = load_aiml_service()
+
+    if service is None:
+        return {
+            "available": False,
+        }
+
+    trajectory = _buffer_telemetry(
+        telemetry
+    )
+
+    original_cwd = os.getcwd()
+
+    try:
+        os.chdir(AIML_ROOT)
+
+        latest = service.predict_dicts(
+            trajectory
+        )
+
+        return {
+            "available": True,
+
+            "anomaly_score": latest.get(
+                "anomaly_score"
+            ),
+
+            "top_fault": latest.get(
+                "top_fault"
+            ),
+
+            "fault_probability": latest.get(
+                "fault_probability"
+            ),
+
+            "fault_severity": latest.get(
+                "fault_severity"
+            ),
+
+            "health_score": latest.get(
+                "health_score"
+            ),
+
+            "health_status": latest.get(
+                "health_status"
+            ),
+
+            "predicted_rul_seconds": latest.get(
+                "predicted_rul_seconds"
+            ),
+
+            "predicted_rul_minutes": latest.get(
+                "predicted_rul_minutes"
+            ),
+
+            "rul_status": latest.get(
+                "rul_status"
+            ),
+        }
+
+    except Exception as exc:
+
+        print(
+            f"[AIML] Inference failed: "
+            f"{exc}"
+        )
+
+        return {
+            "available": False,
+            "error": str(exc),
+        }
+
+    finally:
+        os.chdir(original_cwd)
+
+
+# ============================================================
+# UTILITY HELPERS
 # ============================================================
 
 def _safe_float(
     value: Any,
 ) -> Optional[float]:
     """
-    Convert a value to float.
+    Safely convert a value to float.
 
-    Returns None for missing/invalid/NaN values.
+    Returns None for:
+
+    - None
+    - invalid strings
+    - NaN
+    - unsupported values
     """
 
     if value is None:
         return None
 
     try:
-        value = float(value)
+        converted = float(value)
 
-        if np.isnan(value):
+        if np.isnan(converted):
             return None
 
-        return value
+        return converted
 
-    except (TypeError, ValueError):
+    except (
+        TypeError,
+        ValueError,
+    ):
         return None
 
 
@@ -114,34 +502,57 @@ def _calculate_residual(
     Calculate:
 
         residual = actual - expected
-
-    Returns None if either value is unavailable.
     """
 
-    actual_value = _safe_float(actual)
-    expected_value = _safe_float(expected)
+    actual_value = _safe_float(
+        actual
+    )
 
-    if actual_value is None or expected_value is None:
+    expected_value = _safe_float(
+        expected
+    )
+
+    if (
+        actual_value is None
+        or expected_value is None
+    ):
         return None
 
-    return actual_value - expected_value
+    return (
+        actual_value
+        - expected_value
+    )
 
 
 # ============================================================
-# Residual calculation
+# RESIDUAL PARAMETERS
 # ============================================================
 
 RESIDUAL_PARAMETERS = {
     "rpm": "expected_rpm",
     "cht_c": "expected_cht_c",
     "egt_c": "expected_egt_c",
-    "oil_pressure_kpa": "expected_oil_pressure_kpa",
-    "oil_temperature_c": "expected_oil_temperature_c",
-    "fuel_flow_lph": "expected_fuel_flow_lph",
-    "vibration_g": "expected_vibration_g",
-    "injection_timing_deg": "expected_injection_timing_deg",
+    "oil_pressure_kpa": (
+        "expected_oil_pressure_kpa"
+    ),
+    "oil_temperature_c": (
+        "expected_oil_temperature_c"
+    ),
+    "fuel_flow_lph": (
+        "expected_fuel_flow_lph"
+    ),
+    "vibration_g": (
+        "expected_vibration_g"
+    ),
+    "injection_timing_deg": (
+        "expected_injection_timing_deg"
+    ),
 }
 
+
+# ============================================================
+# RESIDUAL CALCULATION
+# ============================================================
 
 def calculate_residuals(
     telemetry: dict[str, Any],
@@ -149,50 +560,68 @@ def calculate_residuals(
     """
     Calculate actual-vs-expected residuals.
 
-    If generator.py already supplied residual values,
-    those values are used.
+    If telemetry already contains a residual, that value
+    is preserved.
 
-    Otherwise they are calculated from:
+    Otherwise:
 
-        actual - expected
-
-    Returns a dictionary containing residual values.
+        residual = actual - expected
     """
 
-    residuals: dict[str, Optional[float]] = {}
+    residuals: dict[
+        str,
+        Optional[float],
+    ] = {}
 
-    for parameter, expected_parameter in RESIDUAL_PARAMETERS.items():
+    for (
+        parameter,
+        expected_parameter,
+    ) in RESIDUAL_PARAMETERS.items():
 
-        residual_key = f"residual_{parameter}"
+        residual_key = (
+            f"residual_{parameter}"
+        )
 
         # ----------------------------------------------------
-        # Use residual already supplied by generator.py
+        # Use supplied residual
         # ----------------------------------------------------
 
         if residual_key in telemetry:
 
             existing = _safe_float(
-                telemetry.get(residual_key)
+                telemetry.get(
+                    residual_key
+                )
             )
 
             if existing is not None:
-                residuals[residual_key] = existing
+
+                residuals[
+                    residual_key
+                ] = existing
+
                 continue
 
         # ----------------------------------------------------
-        # Otherwise calculate it
+        # Calculate residual
         # ----------------------------------------------------
 
-        residuals[residual_key] = _calculate_residual(
-            telemetry.get(parameter),
-            telemetry.get(expected_parameter),
+        residuals[
+            residual_key
+        ] = _calculate_residual(
+            telemetry.get(
+                parameter
+            ),
+            telemetry.get(
+                expected_parameter
+            ),
         )
 
     return residuals
 
 
 # ============================================================
-# ML feature preparation
+# LEGACY ML FEATURES
 # ============================================================
 
 ML_FEATURES = [
@@ -220,40 +649,45 @@ ML_FEATURES = [
 ]
 
 
+# ============================================================
+# PREPARE LEGACY ML FEATURES
+# ============================================================
+
 def prepare_ml_features(
     telemetry: dict[str, Any],
-    residuals: dict[str, Optional[float]],
+    residuals: dict[
+        str,
+        Optional[float],
+    ],
 ) -> np.ndarray:
     """
-    Prepare the feature vector used by the ML model.
+    Prepare features for the legacy fault model.
 
-    IMPORTANT:
-
-    The exact feature order must eventually match the order
-    used when your teammate trained fault_classifier.joblib.
-
-    For now this function provides a single central location
-    where that mapping can be changed once the final model
-    specification is available.
+    The feature order must match the order used when the
+    legacy model was trained.
     """
 
     values: list[float] = []
 
     for feature in ML_FEATURES:
 
-        if feature.startswith("residual_"):
+        if feature.startswith(
+            "residual_"
+        ):
 
-            value = residuals.get(feature)
+            value = residuals.get(
+                feature
+            )
 
         else:
 
-            value = telemetry.get(feature)
+            value = telemetry.get(
+                feature
+            )
 
-        value = _safe_float(value)
-
-        # ----------------------------------------------------
-        # Basic missing-value handling
-        # ----------------------------------------------------
+        value = _safe_float(
+            value
+        )
 
         if value is None:
             value = 0.0
@@ -267,20 +701,20 @@ def prepare_ml_features(
 
 
 # ============================================================
-# ML inference
+# LEGACY ML INFERENCE
 # ============================================================
 
 def run_ml(
     telemetry: dict[str, Any],
-    residuals: dict[str, Optional[float]],
+    residuals: dict[
+        str,
+        Optional[float],
+    ],
 ) -> dict[str, Any]:
     """
-    Run fault-classification inference.
+    Run the legacy fault-classification model.
 
-    Returns a structured ML result.
-
-    If the model is unavailable, the result clearly indicates
-    that inference was not performed.
+    This is used only when the full AI/ML module is unavailable.
     """
 
     model = load_fault_model()
@@ -305,7 +739,9 @@ def run_ml(
             features
         )
 
-        prediction_value = prediction[0]
+        prediction_value = (
+            prediction[0]
+        )
 
         # ----------------------------------------------------
         # Confidence
@@ -318,12 +754,16 @@ def run_ml(
             "predict_proba",
         ):
 
-            probabilities = model.predict_proba(
-                features
+            probabilities = (
+                model.predict_proba(
+                    features
+                )
             )
 
             confidence = float(
-                np.max(probabilities[0])
+                np.max(
+                    probabilities[0]
+                )
             )
 
         # ----------------------------------------------------
@@ -339,15 +779,21 @@ def run_ml(
 
             try:
 
-                decision = model.decision_function(
-                    features
+                decision = (
+                    model.decision_function(
+                        features
+                    )
                 )
 
                 anomaly_score = float(
-                    np.asarray(decision).reshape(-1)[0]
+                    np.asarray(
+                        decision
+                    )
+                    .reshape(-1)[0]
                 )
 
             except Exception:
+
                 anomaly_score = None
 
         return {
@@ -371,33 +817,28 @@ def run_ml(
 
 
 # ============================================================
-# Basic health calculation
+# PROTOTYPE HEALTH CALCULATION
 # ============================================================
 
 def calculate_health(
-    residuals: dict[str, Optional[float]],
+    residuals: dict[
+        str,
+        Optional[float],
+    ],
 ) -> float:
     """
-    Produce a simple prototype health score from residuals.
+    Calculate a temporary deterministic health score.
 
-    This is NOT the final ML health model.
+    Used only as fallback when the full AI/ML health model
+    is unavailable.
 
-    It provides a temporary deterministic health score so
-    the backend has a useful value before the complete AI
-    health/degradation model is integrated.
-
-    Score:
-
-        100 = healthy
-          0 = severely abnormal
-
-    The score is based on normalized residual magnitudes.
+    100 = healthy
+    0   = severely abnormal
     """
 
-    normalized_deviations: list[float] = []
-
-    # Approximate engineering scales used only for the
-    # prototype health indicator.
+    normalized_deviations: list[
+        float
+    ] = []
 
     scales = {
         "residual_rpm": 500.0,
@@ -410,14 +851,22 @@ def calculate_health(
         "residual_injection_timing_deg": 10.0,
     }
 
-    for key, scale in scales.items():
+    for (
+        key,
+        scale,
+    ) in scales.items():
 
-        value = residuals.get(key)
+        value = residuals.get(
+            key
+        )
 
         if value is None:
             continue
 
-        normalized = abs(value) / scale
+        normalized = (
+            abs(value)
+            / scale
+        )
 
         normalized_deviations.append(
             normalized
@@ -432,30 +881,37 @@ def calculate_health(
         )
     )
 
-    health = 100.0 * (
-        1.0 - min(
-            average_deviation,
-            1.0,
+    health = (
+        100.0
+        * (
+            1.0
+            - min(
+                average_deviation,
+                1.0,
+            )
         )
     )
 
     return round(
-        max(0.0, health),
+        max(
+            0.0,
+            health,
+        ),
         2,
     )
 
 
 # ============================================================
-# Fault severity
+# FAULT SEVERITY
 # ============================================================
 
 def determine_severity(
     health_score: float,
 ) -> str:
     """
-    Convert health score into a simple severity category.
+    Convert health score to severity.
 
-    This is temporary prototype logic.
+    This is fallback/prototype logic only.
     """
 
     if health_score >= 85:
@@ -471,16 +927,84 @@ def determine_severity(
 
 
 # ============================================================
-# Main telemetry processor
+# RUL CONVERSION
+# ============================================================
+
+def rul_seconds_to_hours(
+    rul_seconds: Any,
+) -> Optional[float]:
+    """
+    Convert RUL seconds to hours.
+    """
+
+    value = _safe_float(
+        rul_seconds
+    )
+
+    if value is None:
+        return None
+
+    return round(
+        value / 3600.0,
+        3,
+    )
+
+
+# ============================================================
+# TREND
+# ============================================================
+
+def determine_trend(
+    health_score: Optional[float],
+    rul_status: Optional[str] = None,
+) -> str:
+    """
+    Determine health trend.
+
+    AI/ML RUL status takes priority when available.
+    Otherwise fallback health thresholds are used.
+    """
+
+    if rul_status is not None:
+
+        normalized_status = str(
+            rul_status
+        ).upper()
+
+        if normalized_status in {
+            "NOT_APPLICABLE",
+            "NORMAL",
+            "STABLE",
+        }:
+            return "STABLE"
+
+        if normalized_status in {
+            "DEGRADING",
+            "WARNING",
+            "CRITICAL",
+        }:
+            return "DEGRADING"
+
+    if health_score is None:
+        return "STABLE"
+
+    if health_score >= 85:
+        return "STABLE"
+
+    return "DEGRADING"
+
+
+# ============================================================
+# MAIN TELEMETRY PROCESSOR
 # ============================================================
 
 def process_telemetry(
     telemetry: dict[str, Any],
 ) -> dict[str, Any]:
     """
-    Main AeroTwin processing pipeline.
+    Main AeroTwin telemetry pipeline.
 
-    Flow:
+    Processing order:
 
         telemetry
              |
@@ -491,24 +1015,31 @@ def process_telemetry(
         residual calculation
              |
              v
-        ML features
+        full AI/ML module
              |
-             v
-        ML inference
+             +---- available ----> anomaly
+             |                     fault
+             |                     health
+             |                     RUL
              |
-             v
-        health calculation
+             +---- unavailable ---> legacy ML
+                                   prototype health
              |
              v
         structured result
-
-    Database storage will be connected through
-    supabase_client.py after this pipeline is tested.
     """
 
-    # --------------------------------------------------------
-    # Basic validation
-    # --------------------------------------------------------
+    # ========================================================
+    # BASIC VALIDATION
+    # ========================================================
+
+    if not isinstance(
+        telemetry,
+        dict,
+    ):
+        raise TypeError(
+            "Telemetry must be a dictionary."
+        )
 
     engine_id = telemetry.get(
         "engine_id"
@@ -537,54 +1068,260 @@ def process_telemetry(
             "Missing timestamp_s."
         )
 
-    # --------------------------------------------------------
-    # Calculate actual-vs-expected behavior
-    # --------------------------------------------------------
+    # ========================================================
+    # RESIDUALS
+    # ========================================================
 
     residuals = calculate_residuals(
         telemetry
     )
 
-    # --------------------------------------------------------
-    # Health
-    # --------------------------------------------------------
+    # ========================================================
+    # PRIMARY AI/ML PIPELINE
+    # ========================================================
 
-    health_score = calculate_health(
-        residuals
+    aiml_result = run_aiml(
+        telemetry
     )
 
-    severity = determine_severity(
-        health_score
+    # ========================================================
+    # AI/ML AVAILABLE
+    # ========================================================
+
+    if aiml_result.get(
+        "available"
+    ):
+
+        health_score = _safe_float(
+            aiml_result.get(
+                "health_score"
+            )
+        )
+
+        # ----------------------------------------------------
+        # Health status / severity
+        # ----------------------------------------------------
+
+        severity = (
+            aiml_result.get(
+                "health_status"
+            )
+        )
+
+        if not severity:
+
+            severity = determine_severity(
+                health_score
+                if health_score is not None
+                else 0.0
+            )
+
+        # ----------------------------------------------------
+        # Fault
+        # ----------------------------------------------------
+
+        predicted_fault = (
+            aiml_result.get(
+                "top_fault"
+            )
+        )
+
+        confidence = _safe_float(
+            aiml_result.get(
+                "fault_probability"
+            )
+        )
+
+        # ----------------------------------------------------
+        # RUL
+        # ----------------------------------------------------
+
+        rul_seconds = _safe_float(
+            aiml_result.get(
+                "predicted_rul_seconds"
+            )
+        )
+
+        rul_hours = (
+            rul_seconds_to_hours(
+                rul_seconds
+            )
+        )
+
+        # If seconds are unavailable, try minutes.
+        if (
+            rul_hours is None
+            and aiml_result.get(
+                "predicted_rul_minutes"
+            ) is not None
+        ):
+
+            rul_minutes = _safe_float(
+                aiml_result.get(
+                    "predicted_rul_minutes"
+                )
+            )
+
+            if rul_minutes is not None:
+
+                rul_hours = round(
+                    rul_minutes / 60.0,
+                    3,
+                )
+
+        # ----------------------------------------------------
+        # Trend
+        # ----------------------------------------------------
+
+        trend = determine_trend(
+            health_score,
+            aiml_result.get(
+                "rul_status"
+            ),
+        )
+
+        # ----------------------------------------------------
+        # Unified ML result
+        # ----------------------------------------------------
+
+        ml_result = {
+            "source": "ai_ml_module",
+            "available": True,
+
+            "prediction": predicted_fault,
+
+            "confidence": confidence,
+
+            "anomaly_score": (
+                aiml_result.get(
+                    "anomaly_score"
+                )
+            ),
+
+            "fault_severity": (
+                aiml_result.get(
+                    "fault_severity"
+                )
+            ),
+
+            "health_score": health_score,
+
+            "health_status": (
+                aiml_result.get(
+                    "health_status"
+                )
+            ),
+
+            "predicted_rul_seconds": (
+                rul_seconds
+            ),
+
+            "predicted_rul_minutes": (
+                aiml_result.get(
+                    "predicted_rul_minutes"
+                )
+            ),
+
+            "rul_status": (
+                aiml_result.get(
+                    "rul_status"
+                )
+            ),
+        }
+
+    # ========================================================
+    # LEGACY FALLBACK
+    # ========================================================
+
+    else:
+
+        # ----------------------------------------------------
+        # Prototype health
+        # ----------------------------------------------------
+
+        health_score = calculate_health(
+            residuals
+        )
+
+        severity = determine_severity(
+            health_score
+        )
+
+        # ----------------------------------------------------
+        # Legacy fault classifier
+        # ----------------------------------------------------
+
+        legacy_ml_result = run_ml(
+            telemetry,
+            residuals,
+        )
+
+        predicted_fault = (
+            legacy_ml_result.get(
+                "prediction"
+            )
+        )
+
+        confidence = (
+            legacy_ml_result.get(
+                "confidence"
+            )
+        )
+
+        # ----------------------------------------------------
+        # Legacy pipeline does not provide RUL
+        # ----------------------------------------------------
+
+        rul_hours = None
+
+        trend = determine_trend(
+            health_score
+        )
+
+        # ----------------------------------------------------
+        # Unified ML result
+        # ----------------------------------------------------
+
+        ml_result = {
+            "source": "legacy_fallback",
+            **legacy_ml_result,
+        }
+
+        if aiml_result.get(
+            "error"
+        ):
+
+            ml_result[
+                "ai_ml_error"
+            ] = aiml_result[
+                "error"
+            ]
+
+    # ========================================================
+    # FAULT ACTIVE STATUS
+    # ========================================================
+
+    fault_active = (
+        predicted_fault is not None
+        and str(
+            predicted_fault
+        ).upper()
+        not in {
+            "NORMAL",
+            "NONE",
+            "NO_FAULT",
+        }
     )
 
-    # --------------------------------------------------------
-    # ML inference
-    # --------------------------------------------------------
-
-    ml_result = run_ml(
-        telemetry,
-        residuals,
-    )
-
-    # --------------------------------------------------------
-    # Fault result
-    # --------------------------------------------------------
-
-    predicted_fault = ml_result.get(
-        "prediction"
-    )
-
-    confidence = ml_result.get(
-        "confidence"
-    )
-
-    # --------------------------------------------------------
-    # Build result
-    # --------------------------------------------------------
+    # ========================================================
+    # BUILD FINAL RESULT
+    # ========================================================
 
     result = {
         "engine_id": engine_id,
+
         "mission_id": mission_id,
+
         "timestamp_s": timestamp_s,
 
         "mission_phase": telemetry.get(
@@ -601,47 +1338,39 @@ def process_telemetry(
 
         "fault": {
             "type": predicted_fault,
+
             "confidence": confidence,
-            "active": (
-                predicted_fault is not None
-                and str(predicted_fault).upper()
-                != "NORMAL"
-            ),
+
+            "active": fault_active,
         },
 
-        # ----------------------------------------------------
-        # These will be populated by the RUL/maintenance
-        # components later.
-        # ----------------------------------------------------
+        "rul_hours": rul_hours,
 
-        "rul_hours": None,
-
-        "trend": (
-            "STABLE"
-            if health_score >= 85
-            else "DEGRADING"
-        ),
+        "trend": trend,
 
         "maintenance_recommendation": None,
     }
 
-    # --------------------------------------------------------
-    # Log pipeline result
-    # --------------------------------------------------------
+    # ========================================================
+    # LOG
+    # ========================================================
 
     print(
         "[PIPELINE]"
         f" mission={mission_id}"
         f" engine={engine_id}"
-        f" health={health_score:.1f}"
+        f" health={health_score}"
         f" fault={predicted_fault}"
+        f" severity={severity}"
+        f" trend={trend}"
+        f" rul_hours={rul_hours}"
     )
 
     return result
 
 
 # ============================================================
-# Local test
+# LOCAL TEST
 # ============================================================
 
 if __name__ == "__main__":
@@ -650,45 +1379,87 @@ if __name__ == "__main__":
         "timestamp_s": 10.0,
 
         "engine_id": "ENG-001",
+
         "mission_id": "MIS-0001",
 
         "mission_phase": "CRUISE",
 
         "throttle_pct": 60.0,
+
         "altitude_m": 5000.0,
+
         "ambient_temperature_c": 20.0,
 
         "rpm": 2450.0,
+
         "cht_c": 155.0,
+
         "egt_c": 650.0,
 
         "oil_pressure_kpa": 360.0,
+
         "oil_temperature_c": 70.0,
 
         "fuel_flow_lph": 17.0,
+
         "vibration_g": 0.25,
 
         "alternator_voltage_v": 28.0,
+
         "battery_voltage_v": 25.5,
 
         "injection_timing_deg": 24.0,
 
         "expected_rpm": 2480.0,
+
         "expected_cht_c": 150.0,
+
         "expected_egt_c": 640.0,
 
         "expected_oil_pressure_kpa": 370.0,
+
         "expected_oil_temperature_c": 69.0,
 
         "expected_fuel_flow_lph": 17.2,
+
         "expected_vibration_g": 0.24,
 
         "expected_injection_timing_deg": 23.8,
     }
 
-    result = process_telemetry(
-        test_telemetry
+    print()
+    print(
+        "========================================"
     )
+    print(
+        "       AEROTWIN PIPELINE TEST"
+    )
+    print(
+        "========================================"
+    )
+    print()
 
-    print("\nResult:")
-    print(result)
+    try:
+
+        result = process_telemetry(
+            test_telemetry
+        )
+
+        print()
+        print(
+            "Result:"
+        )
+        print(
+            result
+        )
+
+    except Exception as exc:
+
+        print()
+        print(
+            "[ERROR]"
+        )
+        print(
+            exc
+        )
+
