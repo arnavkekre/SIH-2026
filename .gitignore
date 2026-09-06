@@ -1,0 +1,115 @@
+# ============================================================
+# Python
+# ============================================================
+
+__pycache__/
+*.py[cod]
+*.pyo
+*$py.class
+*.so
+.Python
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# ============================================================
+# Virtual environments
+# ============================================================
+
+backend/env/
+backend/venv/
+backend/.venv/
+venv/
+.venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# ============================================================
+# Environment variables / secrets
+# ============================================================
+
+backend/.env
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# ============================================================
+# Generated telemetry datasets
+# ============================================================
+
+backend/data/generated/
+backend/ai_ml_module/data/raw/*
+backend/ai_ml_module/data/processed/*
+backend/ai_ml_module/data/features/*
+backend/ai_ml_module/data/synthetic/*
+!backend/ai_ml_module/data/raw/.gitkeep
+!backend/ai_ml_module/data/processed/.gitkeep
+!backend/ai_ml_module/data/features/.gitkeep
+!backend/ai_ml_module/data/synthetic/.gitkeep
+!backend/ai_ml_module/data/sample/
+
+# ============================================================
+# ML model artifacts
+#
+# NOTE: trained models in backend/models/ and
+# backend/ai_ml_module/models/ are kept checked-in so the
+# project runs out of the box.
+# ============================================================
+
+*.pkl
+*.pickle
+
+# ============================================================
+# Jupyter
+# ============================================================
+
+.ipynb_checkpoints/
+*/.ipynb_checkpoints/*
+
+# ============================================================
+# Logs / experiment tracking
+# ============================================================
+
+*.log
+logs/
+mlruns/
+wandb/
+
+# ============================================================
+# Testing / coverage
+# ============================================================
+
+.pytest_cache/
+.coverage
+htmlcov/
+
+# ============================================================
+# FastAPI / uvicorn
+# ============================================================
+
+*.pid
+
+# ============================================================
+# Frontend
+# ============================================================
+
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+frontend/.env
+frontend/.env.local
+
+# ============================================================
+# IDE / OS
+# ============================================================
+
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db

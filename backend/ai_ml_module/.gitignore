@@ -1,0 +1,142 @@
+# =========================================================
+# Python
+# =========================================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# =========================================================
+# Virtual environments
+# =========================================================
+.venv/
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# =========================================================
+# Environment / secrets
+# =========================================================
+.env
+.env.*
+!.env.example
+
+*.pem
+*.key
+*.crt
+*.p12
+
+# =========================================================
+# Jupyter
+# =========================================================
+.ipynb_checkpoints/
+*/.ipynb_checkpoints/
+
+# =========================================================
+# Generated / runtime data
+# =========================================================
+data/raw/*
+data/processed/*
+data/features/*
+data/synthetic/*
+data/replay/*
+data/cache/*
+
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+!data/features/.gitkeep
+!data/synthetic/.gitkeep
+!data/replay/.gitkeep
+!data/cache/.gitkeep
+
+# =========================================================
+# Backend runtime files
+# =========================================================
+backend/data/
+backend/logs/
+backend/*.log
+backend/**/*.log
+
+# =========================================================
+# AI/ML experiment outputs
+# =========================================================
+mlruns/
+wandb/
+runs/
+experiments/
+checkpoints/
+
+# =========================================================
+# IMPORTANT:
+# Keep trained production/demo models in Git
+# =========================================================
+!backend/ai_ml_module/models/**/*.joblib
+!backend/ai_ml_module/models/**/*.pkl
+!backend/ai_ml_module/models/**/*.json
+
+# Do NOT ignore model directories themselves
+!backend/ai_ml_module/models/
+!backend/ai_ml_module/models/**/
+
+# =========================================================
+# Logs
+# =========================================================
+logs/
+*.log
+
+# =========================================================
+# Testing / coverage
+# =========================================================
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.pytest_cache/
+
+# =========================================================
+# FastAPI / Uvicorn
+# =========================================================
+*.pid
+
+# =========================================================
+# OS / editor
+# =========================================================
+.DS_Store
+Thumbs.db
+
+.vscode/
+.idea/
+
+*.swp
+*.swo
+*~
+
+# =========================================================
+# Temporary files
+# =========================================================
+*.tmp
+*.temp
+*.bak
+*.swp
+
+# =========================================================
+# Node / Frontend (if frontend uses npm)
+# =========================================================
+frontend/node_modules/
+frontend/.npm/
+frontend/.vite/
+frontend/dist/
+
+# =========================================================
+# Local frontend environment files
+# =========================================================
+frontend/.env
+frontend/.env.*
+!frontend/.env.example

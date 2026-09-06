@@ -1,0 +1,46 @@
+# Canonical telemetry schema for PS54 - Aero Piston Engine Digital Twin
+# This is the P1 -> P3 contract. Do not rename fields without updating src/data/schema.py
+
+telemetry_fields:
+  identifiers:
+    - timestamp        # ISO8601 string
+    - engine_id        # string, e.g. ENG-001
+    - mission_id       # string, e.g. MIS-001
+
+  primary_parameters:      # the 9 parameters explicitly required by the PS
+    - rpm                  # float, revolutions per minute
+    - cht_c                # float, cylinder head temp, Celsius
+    - egt_c                # float, exhaust gas temp, Celsius
+    - oil_pressure_kpa     # float
+    - oil_temperature_c    # float
+    - fuel_flow_lph        # float, litres per hour
+    - vibration_g          # float, g-force RMS
+    - alternator_voltage_v # float
+    - battery_voltage_v    # float
+    - injection_timing_deg # float, degrees
+
+  context_features:        # NOT engine parameters - operating context only
+    - altitude_m
+    - ambient_temperature_c
+    - throttle_pct
+    - mission_phase         # categorical: TAXI, TAKEOFF, CLIMB, CRUISE, LOITER, DESCENT, LANDING
+
+digital_twin_fields:
+  expected_prefix: "expected_"     # expected_rpm, expected_cht_c, ...
+  residual_prefix: "residual_"     # residual_rpm, residual_cht_c, ...
+  relative_residual_prefix: "rel_residual_"
+  model_version_field: "dt_model_version"
+
+ml_output_fields:
+  - health_score        # 0-100
+  - health_status        # HEALTHY / WARNING / DEGRADING / CRITICAL
+  - anomaly_detected     # bool
+  - anomaly_score        # 0-1
+  - fault_probabilities  # dict of fault_code -> probability
+  - top_fault            # fault_code with highest probability above threshold
+  - severity             # LOW / MEDIUM / HIGH
+  - rul_value
+  - rul_unit
+  - rul_confidence
+  - evidence             # list of {parameter, observation, reason_code}
+  - ml_model_version

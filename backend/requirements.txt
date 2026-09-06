@@ -1,0 +1,30 @@
+# ============================================================
+# AeroTwin backend + AI/ML module — merged dependencies
+# ============================================================
+
+# --- Core ---
+numpy
+pandas
+scipy
+PyYAML
+
+# --- Backend API / storage ---
+fastapi
+uvicorn
+pydantic
+supabase
+python-dotenv
+
+# --- ML (fault classification, anomaly detection, RUL) ---
+scikit-learn
+xgboost
+joblib
+
+# --- Explainability (backend/ai_ml_module/src/explainability) ---
+shap
+
+# --- Optional: plotting for eval scripts ---
+matplotlib
+
+# --- Testing ---
+pytest
