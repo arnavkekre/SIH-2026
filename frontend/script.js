@@ -1,0 +1,642 @@
+import * as THREE from 'three';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(40, 20, 50);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        document.body.appendChild(renderer.domElement);
+
+        const pmremGenerator = new THREE.PMREMGenerator(renderer);
+        scene.environment = pmremGenerator.fromScene(new RoomEnvironment(), 0.04).texture;
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+
+        const ambientLight = new THREE.AmbientLight(0xffffff, 1.5);
+        scene.add(ambientLight);
+
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 2);
+        directionalLight.position.set(10, 20, 10);
+        scene.add(directionalLight);
+
+        let propGear, fuelPumpGear, alternator, crankshaftfrontend, waterimpeller;
+        let mixer, fuelimpeller, alternatorcover, mainAction;
+        let Case1, Case2, Case3, Case4, Cover1, Cover2, Cover3, Cover4, Cover5, Cover6;
+        let engineRPM = 10
+        let engineModel
+        let engineBasePosition = null
+        let nativeAnimDuration = 0
+
+        const TELEMETRY_RPM_MIN = 900
+        const TELEMETRY_RPM_MAX = 3700;
+        let VISUAL_RPM_MIN = 15;
+        let VISUAL_RPM_MAX = 90;
+        function mapTelemetryRpmToVisual(telemetryRpm) {
+            const t = Math.min(1, Math.max(0, (telemetryRpm - TELEMETRY_RPM_MIN) / (TELEMETRY_RPM_MAX - TELEMETRY_RPM_MIN)));
+            return VISUAL_RPM_MIN + t * (VISUAL_RPM_MAX - VISUAL_RPM_MIN);
+        }
+        let telemetryMissions = {}
+        let currentMissionKey = null
+        let telemetryElapsed = 0
+        let playbackSpeed = 4
+        let currentTelemetry = { phase: '--', rpm: 0, cht: 0, egt: 0, fuel: 0, vibration: 0, fault: 'NORMAL', faultActive: false };
+
+        const NUMERIC_FIELDS = ['rpm', 'cht_c', 'egt_c', 'oil_pressure_kpa', 'oil_temperature_c', 'fuel_flow_lph', 'vibration_g'];
+
+        function parseCSV(text) {
+            const lines = text.trim().split(/\r?\n/);
+            const headers = lines[0].split(',');
+            const rows = [];
+            for (let i = 1; i < lines.length; i++) {
+                const cols = lines[i].split(',');
+                const row = {};
+                headers.forEach((h, j) => { row[h] = cols[j]; });
+                rows.push(row);
+            }
+            return rows;
+        }
+
+        function groupMissions(rows) {
+            const groups = {};
+            rows.forEach((row) => {
+                const key = row.engine_id + '|' + row.mission_id;
+                if (!groups[key]) groups[key] = [];
+                groups[key].push(row);
+            });
+            Object.keys(groups).forEach((key) => {
+                const rows = groups[key];
+                rows.sort((a, b) => parseFloat(a.timestamp_s) - parseFloat(b.timestamp_s));
+                const last = {};
+                rows.forEach((row) => {
+                    NUMERIC_FIELDS.forEach((f) => {
+                        if (row[f] === '' || row[f] === undefined) {
+                            row[f] = last[f] !== undefined ? last[f] : '0';
+                        }
+                        last[f] = row[f];
+                    });
+                });
+            });
+            return groups;
+        }
+
+        function getInterpolatedTelemetry(rows, t) {
+            let i = 0;
+            while (i < rows.length - 1 && parseFloat(rows[i + 1].timestamp_s) < t) i++;
+            const a = rows[i];
+            const b = rows[Math.min(i + 1, rows.length - 1)];
+            const ta = parseFloat(a.timestamp_s);
+            const tb = parseFloat(b.timestamp_s);
+            const frac = tb > ta ? Math.min(1, Math.max(0, (t - ta) / (tb - ta))) : 0;
+            const lerp = (f) => parseFloat(a[f]) + (parseFloat(b[f]) - parseFloat(a[f])) * frac;
+
+            return {
+                phase: a.mission_phase,
+                rpm: lerp('rpm'),
+                cht: lerp('cht_c'),
+                egt: lerp('egt_c'),
+                fuel: lerp('fuel_flow_lph'),
+                vibration: lerp('vibration_g'),
+                fault: a.true_fault_type,
+                faultActive: a.true_fault_active === '1'
+            };
+        }
+
+        const missionSelect = document.getElementById('missionSelect');
+        const speedSlider = document.getElementById('speedSlider');
+        const speedVal = document.getElementById('speedVal');
+        const hudPhase = document.getElementById('hud-phase');
+        const hudRpm = document.getElementById('hud-rpm');
+        const hudCht = document.getElementById('hud-cht');
+        const hudEgt = document.getElementById('hud-egt');
+        const hudFuel = document.getElementById('hud-fuel');
+        const hudVib = document.getElementById('hud-vib');
+        const hudFault = document.getElementById('hud-fault');
+        const hudTime = document.getElementById('hud-time');
+
+        speedSlider.addEventListener('input', () => {
+            playbackSpeed = parseFloat(speedSlider.value);
+            speedVal.textContent = playbackSpeed + 'x';
+        });
+        const maxRpmSlider = document.getElementById('maxRpmSlider');
+        const maxRpmVal = document.getElementById('maxRpmVal');
+        maxRpmSlider.addEventListener('input', () => {
+            VISUAL_RPM_MAX = parseFloat(maxRpmSlider.value);
+            maxRpmVal.textContent = VISUAL_RPM_MAX;
+        });
+        missionSelect.addEventListener('change', () => {
+            currentMissionKey = missionSelect.value;
+            telemetryElapsed = 0;
+        });
+
+        fetch('telemetry_dataset.csv')
+            .then((res) => res.text())
+            .then((text) => {
+                const rows = parseCSV(text);
+                telemetryMissions = groupMissions(rows);
+                const keys = Object.keys(telemetryMissions).sort();
+                keys.forEach((key) => {
+                    const opt = document.createElement('option');
+                    opt.value = key;
+                    opt.textContent = key.replace('|', ' / ');
+                    missionSelect.appendChild(opt);
+                });
+                if (keys.length > 0) {
+                    currentMissionKey = keys[0];
+                    missionSelect.value = keys[0];
+                }
+            })
+            .catch((err) => {
+                hudPhase.textContent = 'PHASE: (no telemetry loaded)';
+            });
+
+        function updateTelemetryPlayback(delta) {
+            if (!currentMissionKey || !telemetryMissions[currentMissionKey]) return;
+            const rows = telemetryMissions[currentMissionKey];
+            const duration = parseFloat(rows[rows.length - 1].timestamp_s);
+
+            telemetryElapsed += delta * playbackSpeed;
+            if (duration > 0) telemetryElapsed = telemetryElapsed % duration;
+
+            currentTelemetry = getInterpolatedTelemetry(rows, telemetryElapsed);
+
+            engineRPM = mapTelemetryRpmToVisual(currentTelemetry.rpm);
+
+            hudPhase.textContent = 'PHASE: ' + currentTelemetry.phase;
+            hudRpm.textContent = 'RPM: ' + Math.round(currentTelemetry.rpm);
+            hudCht.textContent = 'CHT: ' + currentTelemetry.cht.toFixed(1) + ' \u00b0C';
+            hudEgt.textContent = 'EGT: ' + currentTelemetry.egt.toFixed(1) + ' \u00b0C';
+            hudFuel.textContent = 'Fuel Flow: ' + currentTelemetry.fuel.toFixed(1) + ' L/h';
+            hudVib.textContent = 'Vibration: ' + currentTelemetry.vibration.toFixed(3) + ' G';
+            hudTime.textContent = 't = ' + telemetryElapsed.toFixed(1) + 's / ' + duration.toFixed(1) + 's';
+
+            if (currentTelemetry.faultActive && currentTelemetry.fault !== 'NORMAL') {
+                hudFault.textContent = '\u26a0 ' + currentTelemetry.fault.replace(/_/g, ' ');
+                hudFault.style.color = '#ff5533';
+            } else {
+                hudFault.textContent = 'NORMAL';
+                hudFault.style.color = '#66cc66';
+            }
+        }
+        let jitterCurrent = new THREE.Vector3();
+        let jitterTarget = new THREE.Vector3();
+        let jitterTimer = 0;
+        const JITTER_INTERVAL = 0.06;
+        let firingPunch = { 0: 0, 1: 0 }
+        let shakeClockTime = 0;
+
+        function triggerFiringPunch(pairIndex) {
+            firingPunch[pairIndex] = 1.0;
+        }
+
+        function updateEngineShake(delta) {
+            if (!engineModel || !engineBasePosition) return;
+
+            shakeClockTime += delta;
+            const vib = currentTelemetry.vibration || 0.2;
+
+            const rotFreqHz = (engineRPM / 60);
+            const idleAmp = 0.015 + vib * 0.5;
+            const humX = Math.sin(shakeClockTime * rotFreqHz * Math.PI * 2) * idleAmp;
+            const humY = Math.sin(shakeClockTime * rotFreqHz * Math.PI * 2 * 1.7 + 1.3) * idleAmp * 0.6;
+
+            let punchX = 0, punchY = 0;
+            [0, 1].forEach((pairIndex) => {
+                firingPunch[pairIndex] *= Math.max(0, 1 - delta * 14)
+                const dir = pairIndex === 0 ? 1 : -1;
+                const amp = firingPunch[pairIndex] * (0.15 + vib * 0.6)
+                punchX += dir * amp;
+                punchY += amp * 0.5;
+            })
+            jitterTimer += delta;
+            if (jitterTimer > JITTER_INTERVAL) {
+                jitterTimer = 0;
+                const jitterAmp = 0.02 + vib * 0.25;
+                jitterTarget.set(
+                    (Math.random() - 0.5) * jitterAmp,
+                    (Math.random() - 0.5) * jitterAmp,
+                    (Math.random() - 0.5) * jitterAmp * 0.5
+                );
+            }
+            jitterCurrent.lerp(jitterTarget, Math.min(1, delta * 10));
+
+            engineModel.position.set(
+                engineBasePosition.x + humX + punchX + jitterCurrent.x,
+                engineBasePosition.y + humY + punchY + jitterCurrent.y,
+                engineBasePosition.z + jitterCurrent.z
+            );
+            engineModel.rotation.z = (humX * 0.02) + (jitterCurrent.x * 0.01);
+            engineModel.rotation.x = (humY * 0.015) + (jitterCurrent.y * 0.01);
+        }
+
+
+        const cylinderPairs = [[0, 1], [2, 3]];
+        const pairFireTime = [0, 0.5];
+
+        const cylinderFireTime = [0, 0, 0, 0];
+        cylinderPairs.forEach((pair, pairIndex) => {
+            pair.forEach((cyl) => { cylinderFireTime[cyl] = pairFireTime[pairIndex]; });
+        });
+
+        const STROKE_COLORS = {
+            power:       0xffffff,
+            exhaust:     0x999999,
+            intake:      0x3399ff,
+            compression: 0xffaa33
+        };
+        const STROKE_NAMES = { power: 'Power', exhaust: 'Exhaust', intake: 'Intake', compression: 'Compression' };
+
+        const EFFECT_SCALE = 4
+
+        const CYL_RADIUS = 2.2 * EFFECT_SCALE
+        const CYL_DEPTH = 2.0 * EFFECT_SCALE
+        const PARTICLES_PER_CYL = 300;
+        const LAYER_COUNT = 300
+        const GROW_FRACTION = 0.4
+
+        const leadColor = new THREE.Color(0xffffff)
+        const bodyColor = new THREE.Color(0xff6600)
+
+        window.combustionLights = [];
+        window.particleSystems = [];
+        window.fireLayers = [];
+        window.fireBrightness = [];
+        window.glowSprites = []
+
+        const hudDots = [0, 1, 2, 3].map(i => document.getElementById('dot' + i));
+        const hudNames = [0, 1, 2, 3].map(i => document.getElementById('name' + i));
+
+        function makeSoftDotTexture() {
+            const size = 64;
+            const canvas = document.createElement('canvas');
+            canvas.width = size;
+            canvas.height = size;
+            const ctx = canvas.getContext('2d');
+            const grad = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+            grad.addColorStop(0.0, 'rgba(255,255,255,1)');
+            grad.addColorStop(0.4, 'rgba(255,255,255,0.7)');
+            grad.addColorStop(1.0, 'rgba(255,255,255,0)');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, size, size);
+            const tex = new THREE.CanvasTexture(canvas);
+            tex.needsUpdate = true;
+            return tex;
+        }
+        function makeFlowTexture(hexColor) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 128; 
+    canvas.height = 128;
+    const ctx = canvas.getContext('2d');
+    
+    ctx.fillStyle = '#111111';
+    ctx.fillRect(0, 0, 128, 128);
+    
+    ctx.fillStyle = hexColor;
+    for(let i = 0; i < 128; i += 32) {
+        ctx.fillRect(i, 0, 16, 128);
+    }
+    
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.wrapT = THREE.RepeatWrapping;
+    return tex;
+}
+
+const waterTex = makeFlowTexture('#00aaff');
+const fuelTex = makeFlowTexture('#ffcc00')
+const heatwatertex = makeFlowTexture('#ff3300')
+const insidewatertex = makeFlowTexture('#E68D2E')
+const exhuasttex = makeFlowTexture('#999999')
+
+window.fluidMaterials = [];
+        const softDotTexture = makeSoftDotTexture();
+
+        const loader = new GLTFLoader();
+        loader.load(
+            '/3D_Models/rotax912engine.glb',
+            (gltf) => {
+                const model = gltf.scene;
+                engineModel = model
+                mixer = new THREE.AnimationMixer(model);
+
+                if (gltf.animations.length > 0) {
+                    nativeAnimDuration = gltf.animations[0].duration;
+                    const targetRPS = engineRPM / 60;
+                    mixer.timeScale = targetRPS * nativeAnimDuration;
+                }
+
+
+
+
+
+                gltf.animations.forEach((clip) => {
+                    mainAction = mixer.clipAction(clip);
+                    mainAction.play();
+                });
+
+                propGear = model.getObjectByName('prop_gear');
+                fuelPumpGear = model.getObjectByName('fuel_pump_gear');
+                alternator = model.getObjectByName('crankshaft_alternator_end');
+                crankshaftfrontend = model.getObjectByName('crankshaft_reduction_end');
+                fuelimpeller = model.getObjectByName('fuel_impeller');
+                alternatorcover = model.getObjectByName('alternater');
+                waterimpeller = model.getObjectByName('water_pump_impeller');
+
+                Case1 = model.getObjectByName('cylinder_head_case')
+                Case2 = model.getObjectByName('cylinder_head_case001')
+                Case3 = model.getObjectByName('cylinder_head_case002')
+                Case4 = model.getObjectByName('cylinder_head_case003')
+                Cover1 = model.getObjectByName('cylinder002')
+                Cover2 = model.getObjectByName('cylinder_head001')
+                Cover3 = model.getObjectByName('cylinder001')
+                Cover4 = model.getObjectByName('cylinderhead003')
+                Cover5 = model.getObjectByName('cylinder')
+                Cover6 = model.getObjectByName('cylinder003')
+                
+                const waterPipeNames = ['belowpipe1', 'belowpipe2', 'belowpipe3', 'belowpipe4'];
+const fuelPipeNames = ['fuel_pipe_left', 'fuel_pipe_right', 'fuelpipeinside1', 'fuelpipeinside2', 'fuelpipeinside3', 'fuelpipeinside4'];
+const heatewater = ['abovepipe1', 'abovepipe2', 'abovepipe3', 'abovepipe4']
+const insidewater = ['waterpipeinside1', 'waterpipeinside2', 'waterpipeinside3', 'waterpipeinside4']
+const exhaustPipes = ['exhaust1', 'exhaust2', 'exhaust3', 'exhaust4']
+function setupPipes(names, texture, speed) {
+    names.forEach((name) => {
+        const pipe = model.getObjectByName(name);
+        if (pipe && pipe.material) {
+            pipe.material = pipe.material.clone();
+            pipe.material.map = texture;
+            pipe.material.emissiveMap = texture;
+            pipe.material.emissive = new THREE.Color(0xffffff);
+            pipe.material.emissiveIntensity = 0.8;
+            window.fluidMaterials.push({ mat: pipe.material, speed: speed });
+        }
+    });
+}
+
+setupPipes(waterPipeNames, waterTex, 0.5); 
+setupPipes(fuelPipeNames, fuelTex, 0.8);
+setupPipes(heatewater, heatwatertex, 0.8);
+setupPipes(insidewater, insidewatertex, 0.8);
+setupPipes(exhaustPipes, exhuasttex, 0.8);
+                function makeGlass(obj, opacityLevel) {
+    if (!obj) return;
+    
+    obj.traverse((child) => {
+        if (child.isMesh && child.material) {
+            child.material = child.material.clone();
+            child.material.transparent = true;
+            child.material.opacity = opacityLevel;
+            child.material.depthWrite = false;         }
+    });
+}
+                const leftCase = model.getObjectByName('engine_front1')
+                const rightCase = model.getObjectByName('cylinder_case_right')
+                const headCase1 = model.getObjectByName('cylinder_case_left')
+                const shellOpacity = 0.3
+makeGlass(leftCase, shellOpacity);
+makeGlass(rightCase, shellOpacity);
+makeGlass(headCase1, shellOpacity);
+makeGlass(alternatorcover, shellOpacity);
+makeGlass(Case1, shellOpacity)
+makeGlass(Case2, shellOpacity);
+makeGlass(Case3, shellOpacity);
+makeGlass(Case4, shellOpacity);
+makeGlass(Cover1, shellOpacity);
+makeGlass(Cover2, shellOpacity);
+makeGlass(Cover3, shellOpacity);
+makeGlass(Cover4, shellOpacity);
+makeGlass(Cover5, shellOpacity);
+makeGlass(Cover6, shellOpacity);
+
+                const cylinderNames = ['cylinder', 'cylinder001', 'cylinder002', 'cylinder003'];
+
+                const fireMaterial = new THREE.PointsMaterial({
+            color: 0xffffff,
+            map: softDotTexture,
+            vertexColors: true,
+            size: 3.2 * EFFECT_SCALE,
+            transparent: true,
+            opacity: 1.0,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false
+        });
+
+                const glowSpriteMaterial = new THREE.SpriteMaterial({
+                    map: softDotTexture,
+                    color: 0x3399ff,
+                    transparent: true,
+                    opacity: 0,
+                    blending: THREE.AdditiveBlending,
+                    depthWrite: false
+                });
+
+                cylinderNames.forEach((name) => {
+                    const cyl = model.getObjectByName(name);
+                    if (cyl) {
+                        const spark = new THREE.PointLight(0xff4400, 0, 25);
+                        spark.position.set(0, 2, 2.5);
+                        cyl.add(spark);
+                        window.combustionLights.push(spark);
+
+                        const geometry = new THREE.BufferGeometry();
+                        const positions = new Float32Array(PARTICLES_PER_CYL * 3);
+                        const colors = new Float32Array(PARTICLES_PER_CYL * 3)
+                        const layers = new Float32Array(PARTICLES_PER_CYL);
+                        const brightness = new Float32Array(PARTICLES_PER_CYL);
+
+                        for (let i = 0; i < PARTICLES_PER_CYL; i++) {
+                            const theta = Math.random() * Math.PI * 2;
+                            const rad = CYL_RADIUS * Math.sqrt(Math.random())
+                            const depth = (Math.random() - 0.5) * CYL_DEPTH;
+
+                            positions[i * 3] = Math.cos(theta) * rad;
+                            positions[i * 3 + 1] = depth;
+                            positions[i * 3 + 2] = Math.sin(theta) * rad;
+
+                            const normalizedR = rad / CYL_RADIUS
+                            layers[i] = Math.min(LAYER_COUNT - 1, Math.floor(normalizedR * LAYER_COUNT));
+                            brightness[i] = 0.7 + Math.random() * 0.3;
+                        }
+
+                        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+                        geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+                        const particles = new THREE.Points(geometry, fireMaterial);
+                        particles.position.set(0, 2, 2.5);
+                        particles.visible = false;
+                        cyl.add(particles);
+                        window.particleSystems.push(particles);
+                        window.fireLayers.push(layers);
+                        window.fireBrightness.push(brightness);
+
+
+                        const glow = new THREE.Sprite(glowSpriteMaterial.clone());
+                        glow.position.set(0, 2, 2.5);
+                        glow.scale.set(4, 4, 4);
+                        cyl.add(glow);
+                        window.glowSprites.push(glow);
+                    }
+                });
+
+                const box = new THREE.Box3().setFromObject(model);
+                const center = box.getCenter(new THREE.Vector3());
+                model.position.sub(center);
+                engineBasePosition = model.position.clone()
+
+                scene.add(model);
+            },
+            undefined,
+            (error) => console.error(error)
+        );
+
+        const clock = new THREE.Clock();
+        const tmpColor = new THREE.Color();
+
+        function updateFlameFront(cylIndex, t) {
+            const particles = window.particleSystems[cylIndex];
+            const layers = window.fireLayers[cylIndex];
+            const brightnessArr = window.fireBrightness[cylIndex];
+            const colorAttr = particles.geometry.getAttribute('color');
+            const colorArray = colorAttr.array;
+
+            let growFront, burnFront;
+            if (t <= GROW_FRACTION) {
+                growFront = (t / GROW_FRACTION) * LAYER_COUNT;
+                burnFront = -1;
+            } else {
+                growFront = LAYER_COUNT;
+                burnFront = ((t - GROW_FRACTION) / (1 - GROW_FRACTION)) * LAYER_COUNT;
+            }
+
+            for (let i = 0; i < layers.length; i++) {
+                const layer = layers[i];
+                const lit = layer < growFront && layer >= burnFront;
+
+                if (!lit) {
+                    colorArray[i * 3] = 0;
+                    colorArray[i * 3 + 1] = 0;
+                    colorArray[i * 3 + 2] = 0;
+                    continue;
+                }
+
+                const isLeadingEdge = (growFront - layer) < 1.5 && burnFront < 0;
+                tmpColor.copy(isLeadingEdge ? leadColor : bodyColor);
+                const b = brightnessArr[i];
+                colorArray[i * 3] = tmpColor.r * b;
+                colorArray[i * 3 + 1] = tmpColor.g * b;
+                colorArray[i * 3 + 2] = tmpColor.b * b;
+            }
+
+            colorAttr.needsUpdate = true;
+        }
+
+        function updateCylinderStroke(cylIndex, localPhase) {
+            const light = window.combustionLights[cylIndex];
+            const fire = window.particleSystems[cylIndex];
+            const glow = window.glowSprites[cylIndex];
+
+            let strokeKey;
+
+            if (localPhase < 0.25) {
+                strokeKey = 'power';
+                const t = localPhase / 0.25;
+                fire.visible = true;
+                updateFlameFront(cylIndex, t);
+                light.color.setHex(0xff5500);
+                light.intensity = 90 * Math.max(0, 1 - t) * (1 - t); 
+                glow.material.opacity = 0;
+                if (t < 0.05) {
+                    const pairIndex = cylinderPairs.findIndex((pair) => pair.includes(cylIndex));
+                    if (pairIndex !== -1) triggerFiringPunch(pairIndex);
+                }
+            }else if (localPhase < 0.5) {
+                strokeKey = 'exhaust';
+                const rel = (localPhase - 0.25) / 0.25;
+                fire.visible = false;
+                light.color.setHex(STROKE_COLORS.exhaust);
+                light.intensity = 2.0 * (1 - rel);
+                glow.material.color.setHex(STROKE_COLORS.exhaust);
+                glow.scale.setScalar((4 + rel * 3.5) * EFFECT_SCALE)
+                glow.material.opacity = 0.35 * (1 - rel);
+            } else if (localPhase < 0.75) {
+                strokeKey = 'intake';
+                const rel = (localPhase - 0.5) / 0.25;
+                fire.visible = false;
+                const pulse = Math.sin(rel * Math.PI);
+                light.color.setHex(STROKE_COLORS.intake);
+                light.intensity = pulse * 1.6;
+                glow.material.color.setHex(STROKE_COLORS.intake);
+                glow.scale.setScalar((3.5 + pulse * 0.8) * EFFECT_SCALE)
+                glow.material.opacity = 0.3 * pulse;
+            } else {
+                strokeKey = 'compression';
+                const rel = (localPhase - 0.75) / 0.25
+                fire.visible = false
+                light.color.setHex(STROKE_COLORS.compression)
+                light.intensity = rel * rel * 3.0
+                glow.material.color.setHex(STROKE_COLORS.compression)
+                glow.scale.setScalar((4.3 - rel * 1.0) * EFFECT_SCALE)
+                glow.material.opacity = 0.15 + rel * rel * 0.35;
+            }
+
+            const stroke = STROKE_NAMES[strokeKey];
+            tmpColor.setHex(strokeKey === 'power' ? 0xff6600 : STROKE_COLORS[strokeKey]);
+            hudDots[cylIndex].style.background = '#' + tmpColor.getHexString();
+            hudDots[cylIndex].style.color = '#' + tmpColor.getHexString();
+            hudNames[cylIndex].textContent = stroke;
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const delta = clock.getDelta();
+
+            updateTelemetryPlayback(delta)
+
+            const baseRotationSpeed = (engineRPM / 60) * Math.PI * 2 * delta
+
+            if (mixer && mainAction) {
+                mixer.timeScale = (engineRPM / 60) * nativeAnimDuration
+                mixer.update(delta);
+
+                const progress = mainAction.time / mainAction.getClip().duration
+                const timingOffset = 0.15
+                const syncedProgress = (progress + timingOffset) % 1
+
+                if (window.combustionLights.length === 4) {
+                    for (let cyl = 0; cyl < 4; cyl++) {
+                        const localPhase = ((syncedProgress - cylinderFireTime[cyl]) % 1 + 1) % 1;
+                        updateCylinderStroke(cyl, localPhase);
+                    }
+                }
+            }
+if (window.fluidMaterials) {
+    window.fluidMaterials.forEach((item) => {
+        item.mat.map.offset.x -= baseRotationSpeed * 0.1;
+    });
+}
+
+            if (propGear) propGear.rotation.y += baseRotationSpeed / 2.43
+            if (fuelPumpGear) fuelPumpGear.rotation.y -= baseRotationSpeed * 0.8
+            if (alternator) alternator.rotation.y -= baseRotationSpeed * 1.5
+            if (crankshaftfrontend) crankshaftfrontend.rotation.y -= baseRotationSpeed;
+            if (fuelimpeller) fuelimpeller.rotation.x += baseRotationSpeed * 1.2
+            if (waterimpeller) waterimpeller.rotation.y -= baseRotationSpeed * 1.2
+
+            updateEngineShake(delta);
+
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        animate();
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });

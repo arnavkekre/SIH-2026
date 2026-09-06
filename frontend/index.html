@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SIH-2026</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #1a1a1a;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+        canvas {
+            display: block;
+        }
+        #stroke-hud {
+            position: fixed;
+            top: 16px;
+            left: 16px;
+            background: rgba(0,0,0,0.55);
+            border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 8px;
+            padding: 10px 14px;
+            color: #eee;
+            font-size: 13px;
+            line-height: 1.7;
+            backdrop-filter: blur(4px);
+            pointer-events: none;
+            z-index: 10;
+        }
+        #stroke-hud .row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            white-space: nowrap;
+        }
+        #stroke-hud .swatch {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+            flex: none;
+            box-shadow: 0 0 6px currentColor;
+        }
+        #stroke-hud .label {
+            width: 46px;
+            opacity: 0.8;
+        }
+        #stroke-hud .stroke-name {
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <div id="stroke-hud">
+        <div class="row"><span class="label">Cyl 1</span><span class="swatch" id="dot0"></span><span class="stroke-name" id="name0">--</span></div>
+        <div class="row"><span class="label">Cyl 2</span><span class="swatch" id="dot1"></span><span class="stroke-name" id="name1">--</span></div>
+        <div class="row"><span class="label">Cyl 3</span><span class="swatch" id="dot2"></span><span class="stroke-name" id="name2">--</span></div>
+        <div class="row"><span class="label">Cyl 4</span><span class="swatch" id="dot3"></span><span class="stroke-name" id="name3">--</span></div>
+    </div>
+    <div id="telemetry-hud" style="position: fixed; top: 16px; right: 16px; background: rgba(0,0,0,0.55); border: 1px solid rgba(255,255,255,0.15); border-radius: 8px; padding: 10px 14px; color: #eee; font-size: 13px; font-family: monospace; z-index: 10; backdrop-filter: blur(4px); width: 230px;">
+    <div id="hud-phase" style="font-weight: bold; margin-bottom: 5px; color: #3399ff;">PHASE: --</div>
+    <div id="hud-rpm">RPM: 0</div>
+    <div id="hud-cht">CHT: 0 &deg;C</div>
+    <div id="hud-egt">EGT: 0 &deg;C</div>
+    <div id="hud-fuel">Fuel Flow: 0 L/h</div>
+    <div id="hud-vib">Vibration: 0 G</div>
+    <div id="hud-fault" style="margin-top: 4px; font-weight: bold;">--</div>
+    <hr style="border-color: rgba(255,255,255,0.15); margin: 8px 0;">
+    <label style="display:block; font-size:11px; opacity:0.8; margin-bottom:2px;">Mission</label>
+    <select id="missionSelect" style="width:100%; font-family: monospace; font-size: 12px; background:#222; color:#eee; border:1px solid #444; border-radius:4px; padding:2px;"></select>
+    <label style="display:block; font-size:11px; opacity:0.8; margin:8px 0 2px;">Playback speed <span id="speedVal">4x</span></label>
+    <input type="range" id="speedSlider" min="1" max="10" step="1" value="4" style="width:100%;">
+    <label style="display:block; font-size:11px; opacity:0.8; margin:8px 0 2px;">Max visual RPM (full power) <span id="maxRpmVal">90</span></label>
+    <input type="range" id="maxRpmSlider" min="20" max="300" step="5" value="90" style="width:100%;">
+    <div id="hud-time" style="margin-top:6px; font-size:11px; opacity:0.7;">t = 0.0s / 0.0s</div>
+</div>
+
+    <script async src="https://unpkg.com/es-module-shims@1.8.0/dist/es-module-shims.js"></script>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script src="script.js" type="module">
+        
+    </script>
+</body>
+</html>
