@@ -20,6 +20,7 @@ dist/
 backend/env/
 backend/venv/
 backend/.venv/
+
 venv/
 .venv/
 env/
@@ -31,34 +32,53 @@ venv.bak/
 # Environment variables / secrets
 # ============================================================
 
-backend/.env
 .env
 .env.*
 !.env.example
+
+backend/.env
+frontend/.env
+frontend/.env.local
+frontend/.env.development.local
+frontend/.env.test.local
+frontend/.env.production.local
+
 *.pem
 *.key
+*.crt
+*.p12
 
 # ============================================================
-# Generated telemetry datasets
+# Generated telemetry / runtime data
 # ============================================================
 
 backend/data/generated/
+backend/data/replay/
+backend/data/cache/
+
 backend/ai_ml_module/data/raw/*
 backend/ai_ml_module/data/processed/*
 backend/ai_ml_module/data/features/*
 backend/ai_ml_module/data/synthetic/*
+
 !backend/ai_ml_module/data/raw/.gitkeep
 !backend/ai_ml_module/data/processed/.gitkeep
 !backend/ai_ml_module/data/features/.gitkeep
 !backend/ai_ml_module/data/synthetic/.gitkeep
-!backend/ai_ml_module/data/sample/
 
 # ============================================================
-# ML model artifacts
-#
-# NOTE: trained models in backend/models/ and
-# backend/ai_ml_module/models/ are kept checked-in so the
-# project runs out of the box.
+# ML experiment outputs
+# ============================================================
+
+mlruns/
+wandb/
+runs/
+experiments/
+checkpoints/
+
+# ============================================================
+# Unwanted model formats
+# Keep .joblib models tracked
 # ============================================================
 
 *.pkl
@@ -72,13 +92,11 @@ backend/ai_ml_module/data/synthetic/*
 */.ipynb_checkpoints/*
 
 # ============================================================
-# Logs / experiment tracking
+# Logs
 # ============================================================
 
 *.log
 logs/
-mlruns/
-wandb/
 
 # ============================================================
 # Testing / coverage
@@ -86,23 +104,31 @@ wandb/
 
 .pytest_cache/
 .coverage
+.coverage.*
 htmlcov/
+coverage/
 
 # ============================================================
-# FastAPI / uvicorn
+# FastAPI / Uvicorn
 # ============================================================
 
 *.pid
 
 # ============================================================
-# Frontend
+# Frontend / Node
 # ============================================================
 
 frontend/node_modules/
 frontend/dist/
 frontend/build/
-frontend/.env
-frontend/.env.local
+frontend/.vite/
+frontend/.next/
+frontend/.cache/
+
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
 
 # ============================================================
 # IDE / OS
@@ -111,5 +137,15 @@ frontend/.env.local
 .vscode/
 .idea/
 *.swp
+*.swo
 .DS_Store
 Thumbs.db
+
+# ============================================================
+# Temporary files
+# ============================================================
+
+*.tmp
+*.temp
+*.bak
+*~
