@@ -68,7 +68,7 @@ export default function TelemetryCard({
   const residualClass = getResidualClasses(residual, thresholds);
 
   const residualSign  = residual != null ? (residual >= 0 ? '+' : '') : '';
-  const residualLabel = residual != null ? `${residualSign}${residual.toFixed(precision)}` : null;
+  const residualLabel = residual != null ? `${residualSign}${Number(residual).toFixed(precision)}` : null;
 
   const chartData = historyData.map((v, i) => ({ i, v }));
 
@@ -91,7 +91,7 @@ export default function TelemetryCard({
       {/* Main value */}
       <div className="flex items-baseline gap-1.5">
         <span className={`font-mono text-2xl font-bold ${valueColor}`}>
-          {value != null ? value.toFixed(precision) : '--'}
+          {value != null ? Number(value).toFixed(precision) : '--'}
         </span>
         {unit && <span className="font-mono text-xs text-text-muted">{unit}</span>}
       </div>
@@ -99,7 +99,7 @@ export default function TelemetryCard({
       {/* Expected annotation */}
       {expected != null && (
         <span className="font-mono text-[10px] text-text-muted">
-          EXP: {expected.toFixed(precision)}{unit ? ` ${unit}` : ''}
+          EXP: {Number(expected).toFixed(precision)}{unit ? ` ${unit}` : ''}
         </span>
       )}
 
@@ -125,7 +125,7 @@ export default function TelemetryCard({
                   fontFamily: 'monospace',
                   color: '#EAF4FF',
                 }}
-                formatter={(v) => [v != null ? v.toFixed(precision) : '--', label]}
+                formatter={(v) => [v != null ? Number(v).toFixed(precision) : '--', label]}
                 labelFormatter={() => ''}
               />
             </LineChart>
