@@ -1,0 +1,94 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-bg-base text-text-base;
+  }
+}
+
+@layer components {
+  .aero-panel {
+    @apply bg-bg-panel border border-bg-border rounded-sm;
+  }
+
+  .aero-card {
+    @apply bg-bg-card border border-bg-border rounded-sm;
+  }
+
+  .aero-label {
+    @apply text-xs font-mono text-text-muted uppercase tracking-widest;
+  }
+
+  .aero-value {
+    @apply font-mono text-text-base;
+  }
+
+  .aero-title {
+    @apply text-primary font-mono text-xs uppercase tracking-widest;
+  }
+
+  .aero-btn {
+    @apply px-3 py-1.5 border border-primary text-primary font-mono text-xs uppercase tracking-wider 
+           hover:bg-primary hover:text-bg-base transition-all duration-200 disabled:opacity-40 
+           disabled:cursor-not-allowed;
+  }
+
+  .aero-btn-filled {
+    @apply px-4 py-2 bg-primary text-bg-base font-mono text-xs uppercase tracking-wider 
+           hover:bg-primary/90 transition-all duration-200 font-semibold;
+  }
+
+  .aero-grid-line {
+    border-color: #20384D;
+  }
+
+  .clip-angle {
+    clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px));
+  }
+
+  .clip-angle-sm {
+    clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%);
+  }
+}
+
+/* Technical grid background utility */
+.bg-tech-grid {
+  background-image: 
+    linear-gradient(rgba(32, 56, 77, 0.15) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(32, 56, 77, 0.15) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+/* Glow effects */
+.glow-cyan {
+  box-shadow: 0 0 12px rgba(53, 201, 255, 0.2), 0 0 2px rgba(53, 201, 255, 0.5);
+}
+.glow-red {
+  box-shadow: 0 0 12px rgba(239, 68, 68, 0.25), 0 0 2px rgba(239, 68, 68, 0.5);
+}
+.glow-amber {
+  box-shadow: 0 0 12px rgba(245, 158, 11, 0.2), 0 0 2px rgba(245, 158, 11, 0.4);
+}
+.glow-green {
+  box-shadow: 0 0 12px rgba(34, 197, 94, 0.2), 0 0 2px rgba(34, 197, 94, 0.4);
+}
+
+/* Corner decoration */
+.corner-tl::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0;
+  width: 12px; height: 12px;
+  border-top: 1px solid #35C9FF;
+  border-left: 1px solid #35C9FF;
+}
+.corner-tr::after {
+  content: '';
+  position: absolute;
+  top: 0; right: 0;
+  width: 12px; height: 12px;
+  border-top: 1px solid #35C9FF;
+  border-right: 1px solid #35C9FF;
+}

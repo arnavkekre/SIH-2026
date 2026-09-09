@@ -7,6 +7,8 @@ from pathlib import Path
 from typing import Any, Optional
 
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from digital_twin.generator import generate_dataset
@@ -47,7 +49,7 @@ GENERATED_DIR = (
 AUTOSTART_REPLAY = (
     os.getenv(
         "AEROTWIN_AUTOSTART_REPLAY",
-        "false",
+        "true",
     ).strip().lower()
     == "true"
 )
@@ -73,6 +75,33 @@ app = FastAPI(
     ),
     version="1.0.0",
 )
+
+# ============================================================
+# CORS — allow frontend dev server and any other origin
+# ============================================================
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# ============================================================
+# STATIC FILES — serve 3D_Models for the frontend engine GLB
+# ============================================================
+
+_MODELS_DIR = Path(__file__).resolve().parents[3] / "3D_Models"
+
+if _MODELS_DIR.exists():
+    app.mount(
+        "/3D_Models",
+        StaticFiles(directory=str(_MODELS_DIR)),
+        name="3d_models",
+    )
+else:
+    print(f"[SERVER] 3D_Models directory not found at {_MODELS_DIR}; skipping static mount.")
 
 
 # ============================================================
@@ -324,6 +353,26 @@ def process_one_telemetry(
     result = process_telemetry(
         inference_telemetry
     )
+
+    # --------------------------------------------------------
+    # Attach raw telemetry fields to the result so the
+    # frontend can display actual sensor values.
+    # Ground-truth fields are already excluded from
+    # inference_telemetry above, so this is safe.
+    # --------------------------------------------------------
+
+    RAW_TELEMETRY_FIELDS = (
+        "rpm", "cht_c", "egt_c",
+        "oil_pressure_kpa", "oil_temperature_c",
+        "fuel_flow_lph", "vibration_g",
+        "alternator_voltage_v", "battery_voltage_v",
+        "injection_timing_deg", "throttle_pct",
+        "altitude_m", "ambient_temperature_c",
+    )
+
+    for field in RAW_TELEMETRY_FIELDS:
+        if field in inference_telemetry:
+            result[field] = inference_telemetry[field]
 
     # --------------------------------------------------------
     # Store latest prediction.
