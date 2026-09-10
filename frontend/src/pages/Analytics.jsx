@@ -7,7 +7,7 @@ import {
 import { BarChart3, AlertTriangle } from 'lucide-react'
 import useAeroStore from '../store/useAeroStore.js'
 
-const chartTheme = { stroke: '#20384D', text: '#8FA8BC' }
+const chartTheme = { stroke: '#1A2E46', text: '#6F8EA9' }
 
 const FAULT_COLORS = {
   NORMAL:                  '#22c55e',
@@ -84,10 +84,10 @@ export default function Analytics() {
         {/* ── SESSION SUMMARY ── */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
           {[
-            { label: 'Data Points',     value: totalPoints.toString(),      color: '#35C9FF', sub: 'this session' },
-            { label: 'Peak Anomaly',    value: peakAnomaly.toFixed(2),      color: peakAnomaly > 0.6 ? '#ef4444' : peakAnomaly > 0.3 ? '#f59e0b' : '#22c55e', sub: 'max score' },
-            { label: 'Lowest Health',   value: lowestHealth === 100 ? '--' : lowestHealth.toFixed(1), color: lowestHealth < 35 ? '#ef4444' : lowestHealth < 60 ? '#f97316' : lowestHealth < 80 ? '#f59e0b' : '#22c55e', sub: 'min score' },
-            { label: 'Active Faults',   value: activeFaults.toString(),     color: activeFaults > 0 ? '#ef4444' : '#22c55e', sub: 'events logged' },
+            { label: 'Data Points',     value: totalPoints.toString(),      color: '#00F0FF', sub: 'this session' },
+            { label: 'Peak Anomaly',    value: peakAnomaly.toFixed(2),      color: peakAnomaly > 0.6 ? '#ef4444' : peakAnomaly > 0.3 ? '#f59e0b' : '#00E5A3', sub: 'max score' },
+            { label: 'Lowest Health',   value: lowestHealth === 100 ? '--' : lowestHealth.toFixed(1), color: lowestHealth < 35 ? '#ef4444' : lowestHealth < 60 ? '#f97316' : lowestHealth < 80 ? '#f59e0b' : '#00E5A3', sub: 'min score' },
+            { label: 'Active Faults',   value: activeFaults.toString(),     color: activeFaults > 0 ? '#ef4444' : '#00E5A3', sub: 'events logged' },
           ].map(({ label, value, color, sub }) => (
             <div key={label} className="aero-card clip-angle-sm p-4">
               <div className="aero-label text-[10px] mb-1">{label}</div>
@@ -107,19 +107,19 @@ export default function Analytics() {
                   <CartesianGrid stroke={chartTheme.stroke} strokeDasharray="3 3" />
                   <XAxis dataKey="t" tick={{ fill: chartTheme.text, fontSize: 10, fontFamily: 'monospace' }} tickLine={false} axisLine={false} />
                   <YAxis domain={[0,100]} tick={{ fill: chartTheme.text, fontSize: 10, fontFamily: 'monospace' }} tickLine={false} axisLine={false} width={30} />
-                  <Tooltip contentStyle={{ background:'#0D1B2A', border:'1px solid #20384D', fontFamily:'monospace', fontSize:11 }} />
-                  <ReferenceArea y1={80} y2={100} fill="#22c55e" fillOpacity={0.05} />
+                  <Tooltip contentStyle={{ background:'#0A1320', border:'1px solid #1A2E46', fontFamily:'monospace', fontSize:11, color:'#E2F1FF' }} />
+                  <ReferenceArea y1={80} y2={100} fill="#00E5A3" fillOpacity={0.05} />
                   <ReferenceArea y1={60} y2={80}  fill="#f59e0b" fillOpacity={0.05} />
                   <ReferenceArea y1={35} y2={60}  fill="#f97316" fillOpacity={0.05} />
                   <ReferenceArea y1={0}  y2={35}  fill="#ef4444" fillOpacity={0.05} />
-                  <ReferenceLine y={80} stroke="#22c55e" strokeDasharray="4 4" strokeWidth={1} />
+                  <ReferenceLine y={80} stroke="#00E5A3" strokeDasharray="4 4" strokeWidth={1} />
                   <ReferenceLine y={60} stroke="#f59e0b" strokeDasharray="4 4" strokeWidth={1} />
                   <ReferenceLine y={35} stroke="#ef4444" strokeDasharray="4 4" strokeWidth={1} />
-                  <Line type="monotone" dataKey="score" stroke="#35C9FF" strokeWidth={2} dot={false} name="Health Score" />
+                  <Line type="monotone" dataKey="score" stroke="#00F0FF" strokeWidth={2} dot={false} name="Health Score" />
                 </LineChart>
               </ResponsiveContainer>
               <div className="flex gap-4 mt-2">
-                {[['HEALTHY','80–100','#22c55e'],['WARNING','60–80','#f59e0b'],['DEGRADING','35–60','#f97316'],['CRITICAL','0–35','#ef4444']].map(([l,r,c])=>(
+                {[['HEALTHY','80–100','#00E5A3'],['WARNING','60–80','#f59e0b'],['DEGRADING','35–60','#f97316'],['CRITICAL','0–35','#ef4444']].map(([l,r,c])=>(
                   <div key={l} className="flex items-center gap-1.5">
                     <div className="w-2 h-2 rounded-sm" style={{ background: c }} />
                     <span className="font-mono text-[10px] text-text-muted">{l} ({r})</span>
@@ -145,16 +145,16 @@ export default function Analytics() {
                   <CartesianGrid stroke={chartTheme.stroke} strokeDasharray="3 3" />
                   <XAxis dataKey="t" tick={{ fill: chartTheme.text, fontSize: 9, fontFamily: 'monospace' }} tickLine={false} axisLine={false} />
                   <YAxis domain={[0,1]} tick={{ fill: chartTheme.text, fontSize: 9, fontFamily: 'monospace' }} tickLine={false} axisLine={false} width={25} />
-                  <Tooltip contentStyle={{ background:'#0D1B2A', border:'1px solid #20384D', fontFamily:'monospace', fontSize:10 }} />
+                  <Tooltip contentStyle={{ background:'#0A1320', border:'1px solid #1A2E46', fontFamily:'monospace', fontSize:10, color:'#E2F1FF' }} />
                   <ReferenceLine y={0.3} stroke="#f59e0b" strokeDasharray="4 4" strokeWidth={1} label={{ value:'WARN', fill:'#f59e0b', fontSize:9, fontFamily:'monospace' }} />
                   <ReferenceLine y={0.6} stroke="#ef4444" strokeDasharray="4 4" strokeWidth={1} label={{ value:'HIGH', fill:'#ef4444', fontSize:9, fontFamily:'monospace' }} />
                   <defs>
                     <linearGradient id="aGrad3" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#35C9FF" stopOpacity={0.3} />
-                      <stop offset="100%" stopColor="#35C9FF" stopOpacity={0} />
+                      <stop offset="0%" stopColor="#00F0FF" stopOpacity={0.3} />
+                      <stop offset="100%" stopColor="#00F0FF" stopOpacity={0} />
                     </linearGradient>
                   </defs>
-                  <Area type="monotone" dataKey="score" stroke="#35C9FF" strokeWidth={2} fill="url(#aGrad3)" dot={false} />
+                  <Area type="monotone" dataKey="score" stroke="#00F0FF" strokeWidth={2} fill="url(#aGrad3)" dot={false} />
                 </AreaChart>
               </ResponsiveContainer>
             ) : (
@@ -169,10 +169,10 @@ export default function Analytics() {
                 <BarChart data={faultDist} layout="vertical">
                   <XAxis type="number" tick={{ fill: chartTheme.text, fontSize: 9, fontFamily: 'monospace' }} tickLine={false} axisLine={false} />
                   <YAxis dataKey="name" type="category" tick={{ fill: chartTheme.text, fontSize: 9, fontFamily: 'monospace' }} tickLine={false} axisLine={false} width={120} />
-                  <Tooltip contentStyle={{ background:'#0D1B2A', border:'1px solid #20384D', fontFamily:'monospace', fontSize:10 }} />
+                  <Tooltip contentStyle={{ background:'#0A1320', border:'1px solid #1A2E46', fontFamily:'monospace', fontSize:10, color:'#E2F1FF' }} />
                   <Bar dataKey="count" radius={[0,2,2,0]}>
                     {faultDist.map((entry) => (
-                      <Cell key={entry.raw} fill={FAULT_COLORS[entry.raw] || '#35C9FF'} />
+                      <Cell key={entry.raw} fill={FAULT_COLORS[entry.raw] || '#00F0FF'} />
                     ))}
                   </Bar>
                 </BarChart>
@@ -192,7 +192,7 @@ export default function Analytics() {
                 <LineChart data={rpmData}>
                   <XAxis dataKey="t" tick={{ fill: chartTheme.text, fontSize: 9, fontFamily: 'monospace' }} tickLine={false} axisLine={false} />
                   <YAxis tick={{ fill: chartTheme.text, fontSize: 9, fontFamily: 'monospace' }} tickLine={false} axisLine={false} width={40} />
-                  <Tooltip contentStyle={{ background:'#0D1B2A', border:'1px solid #20384D', fontFamily:'monospace', fontSize:10 }} />
+                  <Tooltip contentStyle={{ background:'#111111', border:'1px solid #2A2A2A', fontFamily:'monospace', fontSize:10 }} />
                   <Line type="monotone" dataKey="v" stroke="#7C5CFF" strokeWidth={1.5} dot={false} name="RPM" />
                 </LineChart>
               </ResponsiveContainer>
@@ -208,7 +208,7 @@ export default function Analytics() {
                 <LineChart data={vibData}>
                   <XAxis dataKey="t" tick={{ fill: chartTheme.text, fontSize: 9, fontFamily: 'monospace' }} tickLine={false} axisLine={false} />
                   <YAxis tick={{ fill: chartTheme.text, fontSize: 9, fontFamily: 'monospace' }} tickLine={false} axisLine={false} width={40} />
-                  <Tooltip contentStyle={{ background:'#0D1B2A', border:'1px solid #20384D', fontFamily:'monospace', fontSize:10 }} />
+                  <Tooltip contentStyle={{ background:'#111111', border:'1px solid #2A2A2A', fontFamily:'monospace', fontSize:10 }} />
                   <Line type="monotone" dataKey="v" stroke="#f97316" strokeWidth={1.5} dot={false} name="Vibration G" />
                 </LineChart>
               </ResponsiveContainer>

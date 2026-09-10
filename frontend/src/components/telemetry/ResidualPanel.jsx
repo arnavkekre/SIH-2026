@@ -32,7 +32,7 @@ function fmt(val, prec) {
   return Number(val).toFixed(prec)
 }
 
-export default function ResidualPanel() {
+export default function ResidualPanel({ hideHeader = false }) {
   const telemetry      = useAeroStore((s) => s.telemetry)
   const expectedValues = useAeroStore((s) => s.expectedValues)
   const residuals      = useAeroStore((s) => s.residuals)
@@ -42,26 +42,28 @@ export default function ResidualPanel() {
     <div className="flex flex-col gap-2">
 
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <span className="aero-title">
-          DIGITAL TWIN — EXPECTED vs ACTUAL
-        </span>
-        <div className="relative">
-          <button
-            className="text-text-muted hover:text-text-base transition-colors"
-            onMouseEnter={() => setTip(true)}
-            onMouseLeave={() => setTip(false)}
-            aria-label="Residual info"
-          >
-            <Info size={13} strokeWidth={1.8} />
-          </button>
-          {tip && (
-            <div className="absolute right-0 top-5 z-20 w-60 p-2 bg-bg-card border border-bg-border font-mono text-[10px] text-text-muted shadow-lg">
-              Residual = Actual - Expected. Computed by the Digital Twin.
-            </div>
-          )}
+      {!hideHeader && (
+        <div className="flex items-center justify-between">
+          <span className="aero-title">
+            DIGITAL TWIN — EXPECTED vs ACTUAL
+          </span>
+          <div className="relative">
+            <button
+              className="text-text-muted hover:text-text-base transition-colors"
+              onMouseEnter={() => setTip(true)}
+              onMouseLeave={() => setTip(false)}
+              aria-label="Residual info"
+            >
+              <Info size={13} strokeWidth={1.8} />
+            </button>
+            {tip && (
+              <div className="absolute right-0 top-5 z-20 w-60 p-2 bg-bg-card border border-bg-border font-mono text-[10px] text-text-muted shadow-lg">
+                Residual = Actual - Expected. Computed by the Digital Twin.
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Column headers */}
       <div className="grid grid-cols-4 gap-2 pb-1 border-b border-bg-border">

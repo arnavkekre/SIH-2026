@@ -1,6 +1,6 @@
-import React, { useMemo } from 'react'
+import React, { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { AlertTriangle, RefreshCw, Radio } from 'lucide-react'
+import { AlertTriangle, RefreshCw, Radio, ChevronDown, ChevronUp } from 'lucide-react'
 import useAeroStore from '../store/useAeroStore.js'
 import KpiRow from '../components/kpi/KpiRow.jsx'
 import EngineViewer from '../components/engine3d/EngineViewer.jsx'
@@ -14,7 +14,7 @@ import ConnectionIndicator from '../components/ui/ConnectionIndicator.jsx'
 
 function fmt(val, d = 1) {
   if (val == null || isNaN(val)) return null
-  return Number(val).toFixed(d)
+  return Number(val)
 }
 
 export default function Dashboard() {
@@ -26,15 +26,16 @@ export default function Dashboard() {
 
   const isOffline = connectionStatus === 'OFFLINE'
   const hasData   = engineId != null
+  const [showResiduals, setShowResiduals] = useState(false)
 
-  // Sparkline data helpers
-  const rpmHistory  = useMemo(() => telemetryHistory.map(p => ({ v: p.rpm })), [telemetryHistory])
-  const chtHistory  = useMemo(() => telemetryHistory.map(p => ({ v: p.cht_c })), [telemetryHistory])
-  const egtHistory  = useMemo(() => telemetryHistory.map(p => ({ v: p.egt_c })), [telemetryHistory])
-  const oilPHistory = useMemo(() => telemetryHistory.map(p => ({ v: p.oil_pressure_kpa })), [telemetryHistory])
-  const oilTHistory = useMemo(() => telemetryHistory.map(p => ({ v: p.oil_temperature_c })), [telemetryHistory])
-  const fuelHistory = useMemo(() => telemetryHistory.map(p => ({ v: p.fuel_flow_lph })), [telemetryHistory])
-  const vibHistory  = useMemo(() => telemetryHistory.map(p => ({ v: p.vibration_g })), [telemetryHistory])
+  // Sparkline data helpers — extract raw numeric values for the chart
+  const rpmHistory  = useMemo(() => telemetryHistory.map(p => p.rpm), [telemetryHistory])
+  const chtHistory  = useMemo(() => telemetryHistory.map(p => p.cht_c), [telemetryHistory])
+  const egtHistory  = useMemo(() => telemetryHistory.map(p => p.egt_c), [telemetryHistory])
+  const oilPHistory = useMemo(() => telemetryHistory.map(p => p.oil_pressure_kpa), [telemetryHistory])
+  const oilTHistory = useMemo(() => telemetryHistory.map(p => p.oil_temperature_c), [telemetryHistory])
+  const fuelHistory = useMemo(() => telemetryHistory.map(p => p.fuel_flow_lph), [telemetryHistory])
+  const vibHistory  = useMemo(() => telemetryHistory.map(p => p.vibration_g), [telemetryHistory])
 
   const now = timestampS != null ? `T+${Number(timestampS).toFixed(1)}s` : '--'
 
@@ -62,7 +63,9 @@ export default function Dashboard() {
       </div>
 
       {/* ── KPI ROW ── */}
-      <KpiRow />
+      <div className="px-2 py-2 flex-shrink-0">
+        <KpiRow />
+      </div>
 
       {/* ── SIMULATION BANNER ── */}
       {replay.running && (
@@ -78,12 +81,12 @@ export default function Dashboard() {
       {/* ── MAIN 3-COLUMN GRID ── */}
       <div className="flex flex-1 min-h-0 overflow-hidden">
 
-        {/* LEFT PANEL */}
+        {/* LEFT PANEL — Replay + Primary Telemetry */}
         <div className="w-56 flex-shrink-0 border-r border-bg-border flex flex-col gap-2 p-2 overflow-y-auto">
           <ReplayControls />
 
-          {/* Compact telemetry cards */}
-          <TelemetryCard label="RPM"     value={fmt(telemetry.rpm, 0)}  unit=""    historyData={rpmHistory}
+          <div className="aero-title text-[10px] mt-1">PRIMARY TELEMETRY</div>
+          <TelemetryCard label="RPM"     value={fmt(telemetry.rpm, 0)}  unit="rpm"  historyData={rpmHistory}
             expected={fmt(useAeroStore.getState().expectedValues?.expected_rpm, 0)}
             residual={residuals?.residual_rpm}
             thresholds={{ warn: 50, crit: 150 }} precision={0} />
@@ -97,7 +100,7 @@ export default function Dashboard() {
             thresholds={{ warn: 20, crit: 50 }} precision={0} />
         </div>
 
-        {/* CENTER — 3D ENGINE + RESIDUALS */}
+        {/* CENTER — 3D Engine + Residuals */}
         <div className="flex-1 flex flex-col min-w-0">
           {/* Engine viewer */}
           <div className="flex-1 relative min-h-0">
@@ -110,37 +113,63 @@ export default function Dashboard() {
             />
           </div>
 
-          {/* Residual panel below engine */}
-          <div className="flex-shrink-0 border-t border-bg-border max-h-52 overflow-y-auto p-3">
-            <ResidualPanel />
+          {/* Residual panel below engine - collapsible */}
+          <div className="flex-shrink-0 border-t border-bg-border bg-bg-panel/90">
+            <div className="flex items-center justify-between px-3 py-1.5 border-b border-bg-border/60">
+              <span className="aero-title text-[10px]">DIGITAL TWIN — EXPECTED vs ACTUAL</span>
+              <button
+                onClick={() => setShowResiduals((prev) => !prev)}
+                className="flex items-center gap-1 font-mono text-[10px] text-text-muted hover:text-primary transition-colors px-1.5 py-0.5 rounded border border-bg-border"
+              >
+                {showResiduals ? (
+                  <>
+                    <span>COLLAPSE</span>
+                    <ChevronDown size={12} />
+                  </>
+                ) : (
+                  <>
+                    <span>EXPAND TABLE</span>
+                    <ChevronUp size={12} />
+                  </>
+                )}
+              </button>
+            </div>
+            {showResiduals && (
+              <div className="max-h-36 overflow-y-auto px-3 py-2">
+                <ResidualPanel hideHeader={true} />
+              </div>
+            )}
           </div>
         </div>
 
-        {/* RIGHT PANEL */}
-        <div className="w-72 flex-shrink-0 border-l border-bg-border flex flex-col gap-0 overflow-y-auto divide-y divide-bg-border">
-          <div className="p-2">
+        {/* RIGHT PANEL — Diagnostics */}
+        <div className="w-64 flex-shrink-0 border-l border-bg-border flex flex-col gap-0 overflow-y-auto divide-y divide-bg-border">
+          <div className="p-3">
             <AnomalyPanel />
           </div>
-          <div className="p-2">
+          <div className="p-3">
             <FaultPanel />
           </div>
-          <div className="p-2">
+          <div className="p-3">
             <MaintenanceAdvisory />
           </div>
-          {/* Remaining telemetry cards */}
-          <div className="p-2 flex flex-col gap-2">
-            <div className="aero-title mb-1">Telemetry</div>
-            <TelemetryCard label="OIL PRESSURE" value={fmt(telemetry.oil_pressure_kpa, 0)} unit="kPa" historyData={oilPHistory}
-              residual={residuals?.residual_oil_pressure_kpa} thresholds={{ warn: 20, crit: 50 }} precision={0} />
-            <TelemetryCard label="OIL TEMP"     value={fmt(telemetry.oil_temperature_c)}  unit="°C"  historyData={oilTHistory}
-              residual={residuals?.residual_oil_temperature_c} thresholds={{ warn: 5, crit: 15 }} />
-            <TelemetryCard label="FUEL FLOW"    value={fmt(telemetry.fuel_flow_lph)}       unit="L/h" historyData={fuelHistory}
-              residual={residuals?.residual_fuel_flow_lph} thresholds={{ warn: 1, crit: 3 }} />
-            <TelemetryCard label="VIBRATION"    value={fmt(telemetry.vibration_g, 3)}      unit="G"   historyData={vibHistory}
-              residual={residuals?.residual_vibration_g} thresholds={{ warn: 0.05, crit: 0.15 }} precision={3} />
-            <TelemetryCard label="ALTERNATOR"   value={fmt(telemetry.alternator_voltage_v)} unit="V"  historyData={[]} thresholds={{ warn: 1, crit: 3 }} />
-            <TelemetryCard label="BATTERY"      value={fmt(telemetry.battery_voltage_v)}   unit="V"   historyData={[]} thresholds={{ warn: 0.5, crit: 2 }} />
-            <TelemetryCard label="INJ TIMING"   value={fmt(telemetry.injection_timing_deg)} unit="°" historyData={[]}
+
+          {/* Secondary telemetry in right panel */}
+          <div className="p-3 flex flex-col gap-2">
+            <div className="aero-title text-[10px]">SECONDARY TELEMETRY</div>
+            <div className="grid grid-cols-2 gap-2">
+              <TelemetryCard label="OIL PRESS" value={fmt(telemetry.oil_pressure_kpa, 0)} unit="kPa" historyData={oilPHistory}
+                residual={residuals?.residual_oil_pressure_kpa} thresholds={{ warn: 20, crit: 50 }} precision={0} />
+              <TelemetryCard label="OIL TEMP"  value={fmt(telemetry.oil_temperature_c)}  unit="°C"  historyData={oilTHistory}
+                residual={residuals?.residual_oil_temperature_c} thresholds={{ warn: 5, crit: 15 }} />
+              <TelemetryCard label="FUEL FLOW" value={fmt(telemetry.fuel_flow_lph)}       unit="L/h" historyData={fuelHistory}
+                residual={residuals?.residual_fuel_flow_lph} thresholds={{ warn: 1, crit: 3 }} />
+              <TelemetryCard label="VIBRATION" value={fmt(telemetry.vibration_g, 3)}      unit="G"   historyData={vibHistory}
+                residual={residuals?.residual_vibration_g} thresholds={{ warn: 0.05, crit: 0.15 }} precision={3} />
+            </div>
+            <TelemetryCard label="ALTERNATOR" value={fmt(telemetry.alternator_voltage_v)} unit="V"  historyData={[]} thresholds={{ warn: 1, crit: 3 }} />
+            <TelemetryCard label="BATTERY"    value={fmt(telemetry.battery_voltage_v)}   unit="V"   historyData={[]} thresholds={{ warn: 0.5, crit: 2 }} />
+            <TelemetryCard label="INJ TIMING" value={fmt(telemetry.injection_timing_deg)} unit="°" historyData={[]}
               residual={residuals?.residual_injection_timing_deg} thresholds={{ warn: 1, crit: 3 }} />
           </div>
         </div>

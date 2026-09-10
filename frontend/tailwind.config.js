@@ -8,19 +8,19 @@ export default {
     extend: {
       colors: {
         bg: {
-          base: '#07111F',
-          panel: '#0D1B2A',
-          card: '#102235',
-          border: '#20384D',
+          base: '#050B14',
+          panel: '#0A1320',
+          card: '#0F1C2E',
+          border: '#1A2E46',
         },
-        primary: '#35C9FF',
-        secondary: '#7C5CFF',
+        primary: '#00F0FF',
+        secondary: '#00E5A3',
         text: {
-          base: '#EAF4FF',
-          muted: '#8FA8BC',
+          base: '#E2F1FF',
+          muted: '#6F8EA9',
         },
         status: {
-          healthy: '#22C55E',
+          healthy: '#00E5A3',
           warning: '#F59E0B',
           degrading: '#F97316',
           critical: '#EF4444',

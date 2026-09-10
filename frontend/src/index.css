@@ -56,14 +56,17 @@
 /* Technical grid background utility */
 .bg-tech-grid {
   background-image: 
-    linear-gradient(rgba(32, 56, 77, 0.15) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(32, 56, 77, 0.15) 1px, transparent 1px);
+    linear-gradient(rgba(26, 46, 70, 0.35) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(26, 46, 70, 0.35) 1px, transparent 1px);
   background-size: 40px 40px;
 }
 
 /* Glow effects */
 .glow-cyan {
-  box-shadow: 0 0 12px rgba(53, 201, 255, 0.2), 0 0 2px rgba(53, 201, 255, 0.5);
+  box-shadow: 0 0 14px rgba(0, 240, 255, 0.25), 0 0 3px rgba(0, 240, 255, 0.6);
+}
+.glow-emerald {
+  box-shadow: 0 0 14px rgba(0, 229, 163, 0.25), 0 0 3px rgba(0, 229, 163, 0.6);
 }
 .glow-red {
   box-shadow: 0 0 12px rgba(239, 68, 68, 0.25), 0 0 2px rgba(239, 68, 68, 0.5);
@@ -72,7 +75,7 @@
   box-shadow: 0 0 12px rgba(245, 158, 11, 0.2), 0 0 2px rgba(245, 158, 11, 0.4);
 }
 .glow-green {
-  box-shadow: 0 0 12px rgba(34, 197, 94, 0.2), 0 0 2px rgba(34, 197, 94, 0.4);
+  box-shadow: 0 0 12px rgba(0, 229, 163, 0.2), 0 0 2px rgba(0, 229, 163, 0.4);
 }
 
 /* Corner decoration */
@@ -81,14 +84,14 @@
   position: absolute;
   top: 0; left: 0;
   width: 12px; height: 12px;
-  border-top: 1px solid #35C9FF;
-  border-left: 1px solid #35C9FF;
+  border-top: 1px solid #00F0FF;
+  border-left: 1px solid #00F0FF;
 }
 .corner-tr::after {
   content: '';
   position: absolute;
   top: 0; right: 0;
   width: 12px; height: 12px;
-  border-top: 1px solid #35C9FF;
-  border-right: 1px solid #35C9FF;
+  border-top: 1px solid #00F0FF;
+  border-right: 1px solid #00F0FF;
 }

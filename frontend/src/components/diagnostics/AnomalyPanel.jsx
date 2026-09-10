@@ -90,8 +90,8 @@ export default function AnomalyPanel() {
               <ReferenceLine y={0.3} stroke="#F59E0B" strokeDasharray="4 3" strokeWidth={1} />
               <Tooltip
                 contentStyle={{
-                  background: '#0D1B2A', border: '1px solid #20384D',
-                  borderRadius: 4, fontSize: 10, fontFamily: 'monospace', color: '#EAF4FF',
+                  background: '#0A1320', border: '1px solid #1A2E46',
+                  borderRadius: 4, fontFamily: 'monospace', fontSize: 10, color: '#E2F1FF',
                 }}
                 formatter={(v) => [v != null ? v.toFixed(3) : '--', 'Score']}
                 labelFormatter={() => ''}

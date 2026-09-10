@@ -70,10 +70,13 @@ export default function TelemetryCard({
   const residualSign  = residual != null ? (residual >= 0 ? '+' : '') : '';
   const residualLabel = residual != null ? `${residualSign}${Number(residual).toFixed(precision)}` : null;
 
-  const chartData = historyData.map((v, i) => ({ i, v }));
+  const chartData = historyData.map((entry, i) => {
+    const v = typeof entry === 'object' && entry !== null ? entry.v : entry;
+    return { i, v: v != null ? Number(v) : null };
+  });
 
   return (
-    <div className="aero-card flex flex-col gap-2 p-3">
+    <div className="aero-card flex flex-col gap-1.5 p-2">
 
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -90,7 +93,7 @@ export default function TelemetryCard({
 
       {/* Main value */}
       <div className="flex items-baseline gap-1.5">
-        <span className={`font-mono text-2xl font-bold ${valueColor}`}>
+        <span className={`font-mono text-lg font-bold leading-none ${valueColor}`}>
           {value != null ? Number(value).toFixed(precision) : '--'}
         </span>
         {unit && <span className="font-mono text-xs text-text-muted">{unit}</span>}
@@ -105,25 +108,25 @@ export default function TelemetryCard({
 
       {/* Sparkline */}
       {chartData.length > 1 && (
-        <div className="w-full" style={{ height: 60 }}>
-          <ResponsiveContainer width="100%" height={60}>
+        <div className="w-full" style={{ height: 40 }}>
+          <ResponsiveContainer width="100%" height={40}>
             <LineChart data={chartData}>
               <Line
                 type="monotone"
                 dataKey="v"
-                stroke="#35C9FF"
+                stroke="#00F0FF"
                 strokeWidth={1.5}
                 dot={false}
                 isAnimationActive={false}
               />
               <Tooltip
                 contentStyle={{
-                  background: '#0D1B2A',
-                  border: '1px solid #20384D',
+                  background: '#0A1320',
+                  border: '1px solid #1A2E46',
                   borderRadius: 4,
                   fontSize: 10,
                   fontFamily: 'monospace',
-                  color: '#EAF4FF',
+                  color: '#E2F1FF',
                 }}
                 formatter={(v) => [v != null ? Number(v).toFixed(precision) : '--', label]}
                 labelFormatter={() => ''}
