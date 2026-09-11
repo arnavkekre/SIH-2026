@@ -1,4 +1,4 @@
-import React, { useRef } from 'react'
+import React, { useRef, useState, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import {
   Cpu, Activity, AlertTriangle, Heart, ArrowRight,
@@ -59,6 +59,8 @@ function fmt(val, decimals = 1) {
 export default function Home() {
   const exploreRef = useRef(null)
   const { telemetry, healthScore, healthStatus, connectionStatus } = useAeroStore()
+  const [cylinderStrokes, setCylinderStrokes] = useState(['--', '--', '--', '--'])
+  const handleStrokeUpdate = useCallback((names) => setCylinderStrokes(names), [])
 
   const healthColor =
     healthStatus === 'HEALTHY'   ? '#22c55e' :
@@ -162,6 +164,7 @@ export default function Home() {
                     vibration={telemetry.vibration_g}
                     healthStatus={healthStatus}
                     faultType={null}
+                    onStrokeUpdate={handleStrokeUpdate}
                     className="w-full h-full"
                   />
                   <div className="absolute bottom-0 left-0 right-0 text-center pb-1 pointer-events-none">
@@ -192,6 +195,25 @@ export default function Home() {
                 <div className="font-mono text-xs" style={{ color: healthColor }}>
                   {fmt(healthScore)}{healthStatus ? ` · ${healthStatus}` : ''}
                 </div>
+              </div>
+
+              {/* Cylinders HUD — positioned on the left side like other HUD labels */}
+              <div className="absolute top-1/2 left-0 -translate-y-1/2 bg-bg-panel/90 border border-bg-border px-2 py-1.5 backdrop-blur-sm">
+                <div className="aero-label text-[9px] mb-1">CYLINDERS</div>
+                {cylinderStrokes.map((name, i) => {
+                  const color =
+                    name === 'Power'       ? '#f97316' :
+                    name === 'Exhaust'     ? '#94a3b8' :
+                    name === 'Intake'      ? '#22d3ee' :
+                    name === 'Compression' ? '#fbbf24' : '#6F8EA9'
+                  return (
+                    <div key={i} className="flex items-center gap-1.5 font-mono text-[9px] leading-[14px]">
+                      <span className="w-1 h-1 rounded-full" style={{ backgroundColor: color, boxShadow: `0 0 4px ${color}` }} />
+                      <span className="text-text-muted">C{i + 1}</span>
+                      <span className="uppercase" style={{ color }}>{name}</span>
+                    </div>
+                  )
+                })}
               </div>
 
               {/* Engine label */}
