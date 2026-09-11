@@ -5,6 +5,7 @@ import {
   Zap, Droplets, Thermometer, Waves, Radio, Wind, Flame, BarChart3
 } from 'lucide-react'
 import useAeroStore from '../store/useAeroStore.js'
+import EngineViewer from '../components/engine3d/EngineViewer.jsx'
 
 const FAULT_TYPES = [
   { name: 'Misfire',               icon: Zap },
@@ -153,20 +154,18 @@ export default function Home() {
               <div className="absolute inset-4 rounded-full border border-primary/15" style={{ animation: 'spin 8s linear infinite reverse' }} />
               <div className="absolute inset-8 rounded-full border border-primary/20 animate-spin-slow" style={{ animationDuration: '12s' }} />
 
-              {/* Center engine representation */}
+              {/* Center — actual 3D engine viewer */}
               <div className="absolute inset-0 flex items-center justify-center">
-                <div className="relative">
-                  {/* Glow */}
-                  <div className="absolute -inset-16 rounded-full"
-                    style={{ background: 'radial-gradient(circle, rgba(53,201,255,0.08) 0%, transparent 70%)' }} />
-
-                  {/* Engine icon block */}
-                  <div className="relative bg-bg-panel border border-primary/30 p-6"
-                    style={{ clipPath: 'polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 16px 100%, 0 calc(100% - 16px))' }}>
-                    <Cpu className="w-20 h-20 text-primary/60" />
-                    <div className="absolute inset-0 flex items-end justify-center pb-2">
-                      <span className="font-mono text-[9px] text-primary uppercase tracking-widest">ROTAX 912-STYLE</span>
-                    </div>
+                <div className="relative w-64 h-64">
+                  <EngineViewer
+                    rpm={telemetry.rpm}
+                    vibration={telemetry.vibration_g}
+                    healthStatus={healthStatus}
+                    faultType={null}
+                    className="w-full h-full"
+                  />
+                  <div className="absolute bottom-0 left-0 right-0 text-center pb-1 pointer-events-none">
+                    <span className="font-mono text-[9px] text-primary uppercase tracking-widest">ROTAX 912-STYLE</span>
                   </div>
                 </div>
               </div>
