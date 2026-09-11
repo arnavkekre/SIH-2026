@@ -30,7 +30,6 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js'
-import { RotateCcw, Maximize2, Minimize2, Play, Eye } from 'lucide-react'
 
 // ─────────────────────────────────────────────────────────────
 // CONSTANTS (preserved from script.js)
@@ -148,6 +147,7 @@ export default function EngineViewer({
   vibration = null,
   healthStatus = null,
   faultType = null,
+  onStrokeUpdate = null,
   className = '',
 }) {
   const containerRef = useRef(null)
@@ -198,8 +198,6 @@ export default function EngineViewer({
   // UI state
   const [isLoaded,     setIsLoaded]     = useState(false)
   const [loadError,    setLoadError]    = useState(null)
-  const [autoRotate,   setAutoRotate]   = useState(false)
-  const [isFullscreen, setIsFullscreen] = useState(false)
   const [strokeNames,  setStrokeNames]  = useState(['--', '--', '--', '--'])
 
   // Props as refs (so the animation loop can read them without dependency issues)
@@ -210,6 +208,9 @@ export default function EngineViewer({
   useEffect(() => { rpmRef.current = rpm }, [rpm])
   useEffect(() => { vibrationRef.current = vibration }, [vibration])
   useEffect(() => { healthStatusRef.current = healthStatus }, [healthStatus])
+
+  const onStrokeUpdateRef = useRef(onStrokeUpdate)
+  useEffect(() => { onStrokeUpdateRef.current = onStrokeUpdate }, [onStrokeUpdate])
 
   // ─────────────────────────────────────────────────────────
   // THREE.JS INIT
@@ -230,7 +231,7 @@ export default function EngineViewer({
       0.1,
       1000
     )
-    camera.position.set(22, 11, 28)
+    camera.position.set(35, 18, 40)
     cameraRef.current = camera
 
     // Renderer
@@ -684,7 +685,9 @@ export default function EngineViewer({
       lastStrokeUpdateRef.current += delta
       if (lastStrokeUpdateRef.current > 0.08) {
         lastStrokeUpdateRef.current = 0
-        setStrokeNames([...strokeNamesCopy])
+        const names = [...strokeNamesCopy]
+        setStrokeNames(names)
+        if (onStrokeUpdateRef.current) onStrokeUpdateRef.current(names)
       }
 
       // Fluid pipe animation
@@ -706,10 +709,7 @@ export default function EngineViewer({
       updateEngineShake(delta)
 
       // Auto-rotate via controls
-      if (controlsRef.current) {
-        controlsRef.current.autoRotate = autoRotateRef.current
-        controlsRef.current.update()
-      }
+      
 
       renderer.render(scene, camera)
     }
@@ -754,18 +754,14 @@ export default function EngineViewer({
     }
   }, []) // Only run once on mount
 
-  // ─────────────────────────────────────────────────────────
-  // AUTO-ROTATE REF (avoids stale closure in animate())
-  // ─────────────────────────────────────────────────────────
-  const autoRotateRef = useRef(autoRotate)
-  useEffect(() => { autoRotateRef.current = autoRotate }, [autoRotate])
+
 
   // ─────────────────────────────────────────────────────────
   // RESET CAMERA
   // ─────────────────────────────────────────────────────────
   const handleResetCamera = useCallback(() => {
     if (!cameraRef.current || !controlsRef.current) return
-    cameraRef.current.position.set(22, 11, 28)
+    cameraRef.current.position.set(35, 18, 40)
     cameraRef.current.lookAt(0, 0, 0)
     controlsRef.current.reset()
   }, [])
@@ -781,7 +777,7 @@ export default function EngineViewer({
   }[healthStatus] || '#8FA8BC'
 
   return (
-    <div className={`${isFullscreen ? 'fixed inset-0 z-50 bg-bg-base' : 'relative w-full h-full bg-bg-base'} overflow-hidden ${className}`}>
+    <div className={`relative w-full h-full bg-bg-base overflow-hidden ${className}`}>
       {/* Three.js container */}
       <div ref={containerRef} className="absolute inset-0" />
 
@@ -813,72 +809,6 @@ export default function EngineViewer({
           <span className="font-mono text-xs uppercase tracking-widest" style={{ color: healthColor }}>
             {healthStatus}
           </span>
-        </div>
-      )}
-
-      {/* Cylinder stroke HUD (bottom-left) */}
-      {isLoaded && (
-        <div className="absolute bottom-12 left-3 z-20 bg-bg-panel/90 border border-bg-border rounded-sm px-2.5 py-2 backdrop-blur-md shadow-lg min-w-[125px]">
-          <div className="text-[10px] font-mono text-primary font-semibold mb-1.5 uppercase tracking-widest flex items-center justify-between">
-            <span>Cylinders</span>
-            <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-          </div>
-          {strokeNames.map((name, i) => {
-            const strokeColor =
-              name === 'Power'       ? 'text-orange-400 font-semibold' :
-              name === 'Exhaust'     ? 'text-slate-400' :
-              name === 'Intake'      ? 'text-cyan-400' :
-              name === 'Compression' ? 'text-amber-400' : 'text-text-muted'
-
-            const dotBg =
-              name === 'Power'       ? 'bg-orange-500 shadow-[0_0_6px_rgba(249,115,22,0.9)]' :
-              name === 'Exhaust'     ? 'bg-slate-400' :
-              name === 'Intake'      ? 'bg-cyan-400 shadow-[0_0_6px_rgba(34,211,238,0.9)]' :
-              name === 'Compression' ? 'bg-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.9)]' : 'bg-slate-600'
-
-            return (
-              <div key={i} className="flex items-center justify-between gap-3 text-[10px] font-mono py-0.5">
-                <div className="flex items-center gap-1.5">
-                  <span className={`w-1.5 h-1.5 rounded-full ${dotBg} transition-all duration-150`} />
-                  <span className="text-text-muted">Cyl {i + 1}</span>
-                </div>
-                <span className={`${strokeColor} tracking-wider uppercase transition-colors duration-150`}>
-                  {name}
-                </span>
-              </div>
-            )
-          })}
-        </div>
-      )}
-
-      {/* Toolbar (bottom right) */}
-      {isLoaded && (
-        <div className="absolute bottom-3 right-3 z-20 flex gap-2">
-          <button
-            onClick={() => setIsFullscreen((v) => !v)}
-            className={`p-1.5 border font-mono text-xs uppercase transition-all ${
-              isFullscreen ? 'border-primary text-primary bg-primary/10' : 'border-bg-border text-text-muted hover:border-primary hover:text-primary'
-            }`}
-            title={isFullscreen ? 'Exit full screen' : 'Full screen viewer'}
-          >
-            {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
-          </button>
-          <button
-            onClick={() => setAutoRotate((v) => !v)}
-            className={`p-1.5 border font-mono text-xs uppercase transition-all ${
-              autoRotate ? 'border-primary text-primary bg-primary/10' : 'border-bg-border text-text-muted hover:border-primary hover:text-primary'
-            }`}
-            title={autoRotate ? 'Stop auto-rotate' : 'Auto-rotate'}
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-          </button>
-          <button
-            onClick={handleResetCamera}
-            className="p-1.5 border border-bg-border text-text-muted hover:border-primary hover:text-primary transition-all"
-            title="Reset camera"
-          >
-            <Eye className="w-3.5 h-3.5" />
-          </button>
         </div>
       )}
 
