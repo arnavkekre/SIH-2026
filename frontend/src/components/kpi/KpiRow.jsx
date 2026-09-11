@@ -64,7 +64,7 @@ export default function KpiRow() {
     replayRow != null && replayTotal ? Math.round((replayRow / replayTotal) * 100) : null;
 
   return (
-    <div className="flex flex-row gap-2 w-full">
+    <div className="flex flex-row gap-2 w-full px-2">
 
       {/* 1 — ENGINE HEALTH */}
       <KpiCard label="ENGINE HEALTH">

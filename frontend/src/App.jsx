@@ -15,7 +15,7 @@ export default function App() {
       <TelemetryProvider>
         <div className="flex flex-col min-h-screen bg-bg-base">
           <TopNav />
-          <main className="flex-1">
+          <main className="flex-1 pt-14">
             <Routes>
               <Route path="/" element={<Home />} />
               <Route path="/dashboard" element={<Dashboard />} />

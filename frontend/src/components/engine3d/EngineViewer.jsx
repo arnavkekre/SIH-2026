@@ -27,9 +27,10 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react'
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
+import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js'
-import { RotateCcw, Maximize2, Play, Eye } from 'lucide-react'
+import { RotateCcw, Maximize2, Minimize2, Play, Eye } from 'lucide-react'
 
 // ─────────────────────────────────────────────────────────────
 // CONSTANTS (preserved from script.js)
@@ -37,7 +38,7 @@ import { RotateCcw, Maximize2, Play, Eye } from 'lucide-react'
 
 const TELEMETRY_RPM_MIN = 900
 const TELEMETRY_RPM_MAX = 3700
-const VISUAL_RPM_MIN = 15
+const VISUAL_RPM_MIN = 30
 const VISUAL_RPM_MAX = 90
 
 const PARTICLES_PER_CYL = 300
@@ -83,9 +84,21 @@ const HEALTH_TINT_COLORS = {
 }
 
 function mapRpmToVisual(telemetryRpm) {
-  if (telemetryRpm == null) return VISUAL_RPM_MIN
-  const t = Math.min(1, Math.max(0, (telemetryRpm - TELEMETRY_RPM_MIN) / (TELEMETRY_RPM_MAX - TELEMETRY_RPM_MIN)))
+  const num = Number(telemetryRpm)
+  if (telemetryRpm == null || isNaN(num) || num <= 0) return VISUAL_RPM_MIN
+  const t = Math.min(1, Math.max(0, (num - TELEMETRY_RPM_MIN) / (TELEMETRY_RPM_MAX - TELEMETRY_RPM_MIN)))
   return VISUAL_RPM_MIN + t * (VISUAL_RPM_MAX - VISUAL_RPM_MIN)
+}
+
+function findObject(parent, name) {
+  if (!parent || !name) return null
+  return (
+    parent.getObjectByName(name) ||
+    parent.getObjectByName(name.replace(/_/g, ' ')) ||
+    parent.getObjectByName(name.replace(/\s+/g, '_')) ||
+    parent.getObjectByName(name.toLowerCase()) ||
+    parent.getObjectByName(name.replace(/_/g, ' ').toLowerCase())
+  )
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -152,6 +165,9 @@ export default function EngineViewer({
   const clockRef         = useRef(null)
   const animFrameRef     = useRef(null)
   const nativeAnimDurRef = useRef(0)
+  const dracoLoaderRef   = useRef(null)
+  const virtualCycleRef  = useRef(0)
+  const lastStrokeUpdateRef = useRef(0)
 
   // Mutable engine state refs (updated each frame from props)
   const engineRPMRef = useRef(VISUAL_RPM_MIN)
@@ -180,10 +196,11 @@ export default function EngineViewer({
   const shakeClockRef    = useRef(0)
 
   // UI state
-  const [isLoaded,    setIsLoaded]    = useState(false)
-  const [loadError,   setLoadError]   = useState(null)
-  const [autoRotate,  setAutoRotate]  = useState(false)
-  const [strokeNames, setStrokeNames] = useState(['--', '--', '--', '--'])
+  const [isLoaded,     setIsLoaded]     = useState(false)
+  const [loadError,    setLoadError]    = useState(null)
+  const [autoRotate,   setAutoRotate]   = useState(false)
+  const [isFullscreen, setIsFullscreen] = useState(false)
+  const [strokeNames,  setStrokeNames]  = useState(['--', '--', '--', '--'])
 
   // Props as refs (so the animation loop can read them without dependency issues)
   const rpmRef          = useRef(rpm)
@@ -213,7 +230,7 @@ export default function EngineViewer({
       0.1,
       1000
     )
-    camera.position.set(40, 20, 50)
+    camera.position.set(22, 11, 28)
     cameraRef.current = camera
 
     // Renderer
@@ -252,12 +269,30 @@ export default function EngineViewer({
     const exhaustTex     = makeFlowTexture('#999999')
 
     // ─────────────────────────────────────────────────────────
-    // LOAD GLB
+    // LOAD GLB (with Draco support)
     // ─────────────────────────────────────────────────────────
+    // ─────────────────────────────────────────────────────────
+    // LOAD GLB (with Draco support)
+    // ─────────────────────────────────────────────────────────
+    const dracoLoader = new DRACOLoader()
+    dracoLoader.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.7/')
+    dracoLoader.setDecoderConfig({ type: 'wasm' })
+    dracoLoaderRef.current = dracoLoader
+
     const loader = new GLTFLoader()
+    loader.setDRACOLoader(dracoLoader)
+
     loader.load(
       MODEL_URL,
       (gltf) => {
+        // Clear previous refs to prevent duplicate accumulation
+        combustionLightsRef.current = []
+        particleSystemsRef.current  = []
+        fireLayersRef.current        = []
+        fireBrightnessRef.current    = []
+        glowSpritesRef.current       = []
+        fluidMaterialsRef.current    = []
+
         const model = gltf.scene
         engineModelRef.current = model
 
@@ -265,46 +300,50 @@ export default function EngineViewer({
         mixerRef.current = mixer
 
         if (gltf.animations.length > 0) {
-          nativeAnimDurRef.current = gltf.animations[0].duration
-          const targetRPS = engineRPMRef.current / 60
-          mixer.timeScale = targetRPS * nativeAnimDurRef.current
+          nativeAnimDurRef.current = gltf.animations[0].duration || 10
+          const targetRPS = (engineRPMRef.current || VISUAL_RPM_MIN) / 60
+          mixer.timeScale = Math.max(0.1, targetRPS * nativeAnimDurRef.current)
         }
 
         gltf.animations.forEach((clip) => {
-          mainActionRef.current = mixer.clipAction(clip)
-          mainActionRef.current.play()
+          const action = mixer.clipAction(clip)
+          action.setLoop(THREE.LoopRepeat)
+          action.clampWhenFinished = false
+          action.paused = false
+          action.play()
+          mainActionRef.current = action
         })
 
-        // Part references
-        propGearRef.current      = model.getObjectByName('prop_gear')
-        fuelPumpGearRef.current  = model.getObjectByName('fuel_pump_gear')
-        alternatorRef.current    = model.getObjectByName('crankshaft_alternator_end')
-        crankFrontRef.current    = model.getObjectByName('crankshaft_reduction_end')
-        fuelImpellerRef.current  = model.getObjectByName('fuel_impeller')
-        waterImpellerRef.current = model.getObjectByName('water_pump_impeller')
+        // Part references — using findObject to match both spaces and underscores
+        propGearRef.current      = findObject(model, 'prop gear')
+        fuelPumpGearRef.current  = findObject(model, 'fuel pump gear')
+        alternatorRef.current    = findObject(model, 'crankshaft alternator end')
+        crankFrontRef.current    = findObject(model, 'crankshaft reduction end')
+        fuelImpellerRef.current  = findObject(model, 'fuel impeller')
+        waterImpellerRef.current = findObject(model, 'water pump impeller')
 
-        const Case1 = model.getObjectByName('cylinder_head_case')
-        const Case2 = model.getObjectByName('cylinder_head_case001')
-        const Case3 = model.getObjectByName('cylinder_head_case002')
-        const Case4 = model.getObjectByName('cylinder_head_case003')
-        const Cover1 = model.getObjectByName('cylinder002')
-        const Cover2 = model.getObjectByName('cylinder_head001')
-        const Cover3 = model.getObjectByName('cylinder001')
-        const Cover4 = model.getObjectByName('cylinderhead003')
-        const Cover5 = model.getObjectByName('cylinder')
-        const Cover6 = model.getObjectByName('cylinder003')
-        const alternatorCover = model.getObjectByName('alternater')
+        const Case1 = findObject(model, 'cylinder_head_case')
+        const Case2 = findObject(model, 'cylinder_head_case001')
+        const Case3 = findObject(model, 'cylinder_head_case002')
+        const Case4 = findObject(model, 'cylinder_head_case003')
+        const Cover1 = findObject(model, 'cylinder002')
+        const Cover2 = findObject(model, 'cylinder_head001')
+        const Cover3 = findObject(model, 'cylinder001')
+        const Cover4 = findObject(model, 'cylinderhead003')
+        const Cover5 = findObject(model, 'cylinder')
+        const Cover6 = findObject(model, 'cylinder003')
+        const alternatorCover = findObject(model, 'alternater')
 
         // Pipe fluid setup
         const waterPipeNames   = ['belowpipe1','belowpipe2','belowpipe3','belowpipe4']
-        const fuelPipeNames    = ['fuel_pipe_left','fuel_pipe_right','fuelpipeinside1','fuelpipeinside2','fuelpipeinside3','fuelpipeinside4']
+        const fuelPipeNames    = ['fuel pipe left','fuel pipe right','fuelpipeinside1','fuelpipeinside2','fuelpipeinside3','fuelpipeinside4']
         const heatWaterNames   = ['abovepipe1','abovepipe2','abovepipe3','abovepipe4']
         const insideWaterNames = ['waterpipeinside1','waterpipeinside2','waterpipeinside3','waterpipeinside4']
         const exhaustNames     = ['exhaust1','exhaust2','exhaust3','exhaust4']
 
         function setupPipes(names, texture, speed) {
           names.forEach((name) => {
-            const pipe = model.getObjectByName(name)
+            const pipe = findObject(model, name)
             if (pipe && pipe.material) {
               pipe.material = pipe.material.clone()
               pipe.material.map = texture
@@ -450,11 +489,14 @@ export default function EngineViewer({
     const bodyColor  = new THREE.Color(0xff6600)
 
     function updateFlameFront(cylIndex, t) {
-      const particles   = particleSystemsRef.current[cylIndex]
-      const layers      = fireLayersRef.current[cylIndex]
-      const brightnessArr = fireBrightnessRef.current[cylIndex]
-      const colorAttr   = particles.geometry.getAttribute('color')
-      const colorArray  = colorAttr.array
+      const particles     = particleSystemsRef.current?.[cylIndex]
+      const layers        = fireLayersRef.current?.[cylIndex]
+      const brightnessArr = fireBrightnessRef.current?.[cylIndex]
+      if (!particles || !layers || !brightnessArr) return
+
+      const colorAttr     = particles.geometry?.getAttribute('color')
+      if (!colorAttr || !colorAttr.array) return
+      const colorArray    = colorAttr.array
 
       let growFront, burnFront
       if (t <= GROW_FRACTION) {
@@ -488,20 +530,24 @@ export default function EngineViewer({
     const strokeNamesCopy = ['--', '--', '--', '--']
 
     function updateCylinderStroke(cylIndex, localPhase) {
-      const light = combustionLightsRef.current[cylIndex]
-      const fire  = particleSystemsRef.current[cylIndex]
-      const glow  = glowSpritesRef.current[cylIndex]
+      const light = combustionLightsRef.current?.[cylIndex]
+      const fire  = particleSystemsRef.current?.[cylIndex]
+      const glow  = glowSpritesRef.current?.[cylIndex]
 
       let strokeKey
 
       if (localPhase < 0.25) {
         strokeKey = 'power'
         const t = localPhase / 0.25
-        fire.visible = true
-        updateFlameFront(cylIndex, t)
-        light.color.setHex(0xff5500)
-        light.intensity = 90 * Math.max(0, 1 - t) * (1 - t)
-        glow.material.opacity = 0
+        if (fire) {
+          fire.visible = true
+          updateFlameFront(cylIndex, t)
+        }
+        if (light) {
+          light.color.setHex(0xff5500)
+          light.intensity = 90 * Math.max(0, 1 - t) * (1 - t)
+        }
+        if (glow && glow.material) glow.material.opacity = 0
         if (t < 0.05) {
           const pairIndex = cylinderPairs.findIndex((pair) => pair.includes(cylIndex))
           if (pairIndex !== -1) {
@@ -511,34 +557,46 @@ export default function EngineViewer({
       } else if (localPhase < 0.5) {
         strokeKey = 'exhaust'
         const rel = (localPhase - 0.25) / 0.25
-        fire.visible = false
-        light.color.setHex(STROKE_COLORS.exhaust)
-        light.intensity = 2.0 * (1 - rel)
-        glow.material.color.setHex(STROKE_COLORS.exhaust)
-        glow.scale.setScalar((4 + rel * 3.5) * EFFECT_SCALE)
-        glow.material.opacity = 0.35 * (1 - rel)
+        if (fire) fire.visible = false
+        if (light) {
+          light.color.setHex(STROKE_COLORS.exhaust)
+          light.intensity = 2.0 * (1 - rel)
+        }
+        if (glow && glow.material) {
+          glow.material.color.setHex(STROKE_COLORS.exhaust)
+          glow.scale.setScalar((4 + rel * 3.5) * EFFECT_SCALE)
+          glow.material.opacity = 0.35 * (1 - rel)
+        }
       } else if (localPhase < 0.75) {
         strokeKey = 'intake'
         const rel = (localPhase - 0.5) / 0.25
-        fire.visible = false
+        if (fire) fire.visible = false
         const pulse = Math.sin(rel * Math.PI)
-        light.color.setHex(STROKE_COLORS.intake)
-        light.intensity = pulse * 1.6
-        glow.material.color.setHex(STROKE_COLORS.intake)
-        glow.scale.setScalar((3.5 + pulse * 0.8) * EFFECT_SCALE)
-        glow.material.opacity = 0.3 * pulse
+        if (light) {
+          light.color.setHex(STROKE_COLORS.intake)
+          light.intensity = pulse * 1.6
+        }
+        if (glow && glow.material) {
+          glow.material.color.setHex(STROKE_COLORS.intake)
+          glow.scale.setScalar((3.5 + pulse * 0.8) * EFFECT_SCALE)
+          glow.material.opacity = 0.3 * pulse
+        }
       } else {
         strokeKey = 'compression'
         const rel = (localPhase - 0.75) / 0.25
-        fire.visible = false
-        light.color.setHex(STROKE_COLORS.compression)
-        light.intensity = rel * rel * 3.0
-        glow.material.color.setHex(STROKE_COLORS.compression)
-        glow.scale.setScalar((4.3 - rel * 1.0) * EFFECT_SCALE)
-        glow.material.opacity = 0.15 + rel * rel * 0.35
+        if (fire) fire.visible = false
+        if (light) {
+          light.color.setHex(STROKE_COLORS.compression)
+          light.intensity = rel * rel * 3.0
+        }
+        if (glow && glow.material) {
+          glow.material.color.setHex(STROKE_COLORS.compression)
+          glow.scale.setScalar((4.3 - rel * 1.0) * EFFECT_SCALE)
+          glow.material.opacity = 0.15 + rel * rel * 0.35
+        }
       }
 
-      strokeNamesCopy[cylIndex] = STROKE_NAMES[strokeKey]
+      strokeNamesCopy[cylIndex] = STROKE_NAMES[strokeKey] || '--'
     }
 
     function updateEngineShake(delta) {
@@ -587,8 +645,6 @@ export default function EngineViewer({
       model.rotation.x = humY * 0.015 + jitterCurrentRef.current.y * 0.01
     }
 
-    let lastStrokeUpdate = 0
-
     function animate() {
       animFrameRef.current = requestAnimationFrame(animate)
 
@@ -599,32 +655,43 @@ export default function EngineViewer({
 
       const baseRotationSpeed = (engineRPMRef.current / 60) * Math.PI * 2 * delta
 
-      if (mixerRef.current && mainActionRef.current) {
-        mixerRef.current.timeScale = (engineRPMRef.current / 60) * nativeAnimDurRef.current
+      // Update Three.js animation mixer (pistons, valves, crankshaft animation track)
+      if (mixerRef.current) {
+        const animSpeed = (engineRPMRef.current / 60) * (nativeAnimDurRef.current || 10)
+        mixerRef.current.timeScale = Math.max(0.1, animSpeed)
         mixerRef.current.update(delta)
+      }
 
-        const progress      = mainActionRef.current.time / mainActionRef.current.getClip().duration
-        const timingOffset  = 0.15
-        const syncedProgress = (progress + timingOffset) % 1
+      // Calculate cycle progress (from 3D animation clip or smooth virtual rotation)
+      let syncedProgress = 0
+      if (mainActionRef.current && (nativeAnimDurRef.current || 0) > 0) {
+        const clipDur = nativeAnimDurRef.current || mainActionRef.current.getClip()?.duration || 10
+        const progress = (mainActionRef.current.time / clipDur)
+        const timingOffset = 0.15
+        syncedProgress = ((progress + timingOffset) % 1 + 1) % 1
+      } else {
+        virtualCycleRef.current = (virtualCycleRef.current + delta * (engineRPMRef.current / 60)) % 1
+        syncedProgress = virtualCycleRef.current
+      }
 
-        if (combustionLightsRef.current.length === 4) {
-          for (let cyl = 0; cyl < 4; cyl++) {
-            const localPhase = ((syncedProgress - cylinderFireTime[cyl]) % 1 + 1) % 1
-            updateCylinderStroke(cyl, localPhase)
-          }
-        }
+      // Always calculate cylinder stroke states for all 4 cylinders
+      for (let cyl = 0; cyl < 4; cyl++) {
+        const localPhase = ((syncedProgress - cylinderFireTime[cyl]) % 1 + 1) % 1
+        updateCylinderStroke(cyl, localPhase)
+      }
 
-        // Update stroke names in React state (throttled to avoid perf hit)
-        lastStrokeUpdate += delta
-        if (lastStrokeUpdate > 0.1) {
-          lastStrokeUpdate = 0
-          setStrokeNames([...strokeNamesCopy])
-        }
+      // Update stroke names in React state (throttled to avoid 60fps React re-renders)
+      lastStrokeUpdateRef.current += delta
+      if (lastStrokeUpdateRef.current > 0.08) {
+        lastStrokeUpdateRef.current = 0
+        setStrokeNames([...strokeNamesCopy])
       }
 
       // Fluid pipe animation
       fluidMaterialsRef.current.forEach((item) => {
-        item.mat.map.offset.x -= baseRotationSpeed * 0.1
+        if (item?.mat?.map?.offset) {
+          item.mat.map.offset.x -= baseRotationSpeed * 0.1 * (item.speed || 1)
+        }
       })
 
       // Mechanical parts rotation
@@ -670,6 +737,9 @@ export default function EngineViewer({
     return () => {
       cancelAnimationFrame(animFrameRef.current)
       resizeObserver.disconnect()
+      if (dracoLoaderRef.current) {
+        dracoLoaderRef.current.dispose()
+      }
       renderer.dispose()
       if (container.contains(renderer.domElement)) {
         container.removeChild(renderer.domElement)
@@ -695,7 +765,7 @@ export default function EngineViewer({
   // ─────────────────────────────────────────────────────────
   const handleResetCamera = useCallback(() => {
     if (!cameraRef.current || !controlsRef.current) return
-    cameraRef.current.position.set(40, 20, 50)
+    cameraRef.current.position.set(22, 11, 28)
     cameraRef.current.lookAt(0, 0, 0)
     controlsRef.current.reset()
   }, [])
@@ -711,7 +781,7 @@ export default function EngineViewer({
   }[healthStatus] || '#8FA8BC'
 
   return (
-    <div className={`relative w-full h-full bg-bg-base overflow-hidden ${className}`}>
+    <div className={`${isFullscreen ? 'fixed inset-0 z-50 bg-bg-base' : 'relative w-full h-full bg-bg-base'} overflow-hidden ${className}`}>
       {/* Three.js container */}
       <div ref={containerRef} className="absolute inset-0" />
 
@@ -748,25 +818,51 @@ export default function EngineViewer({
 
       {/* Cylinder stroke HUD (bottom-left) */}
       {isLoaded && (
-        <div className="absolute bottom-12 left-3 z-20 bg-bg-panel/80 border border-bg-border rounded-sm px-2 py-1.5 backdrop-blur-sm">
-          <div className="text-[10px] font-mono text-text-muted mb-1 uppercase tracking-widest">Cylinders</div>
-          {strokeNames.map((name, i) => (
-            <div key={i} className="flex items-center gap-1.5 text-[10px] font-mono">
-              <span className="text-text-muted w-8">Cyl {i + 1}</span>
-              <span className={
-                name === 'Power'       ? 'text-white' :
-                name === 'Exhaust'     ? 'text-gray-400' :
-                name === 'Intake'      ? 'text-blue-400' :
-                name === 'Compression' ? 'text-amber-400' : 'text-text-muted'
-              }>{name}</span>
-            </div>
-          ))}
+        <div className="absolute bottom-12 left-3 z-20 bg-bg-panel/90 border border-bg-border rounded-sm px-2.5 py-2 backdrop-blur-md shadow-lg min-w-[125px]">
+          <div className="text-[10px] font-mono text-primary font-semibold mb-1.5 uppercase tracking-widest flex items-center justify-between">
+            <span>Cylinders</span>
+            <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+          </div>
+          {strokeNames.map((name, i) => {
+            const strokeColor =
+              name === 'Power'       ? 'text-orange-400 font-semibold' :
+              name === 'Exhaust'     ? 'text-slate-400' :
+              name === 'Intake'      ? 'text-cyan-400' :
+              name === 'Compression' ? 'text-amber-400' : 'text-text-muted'
+
+            const dotBg =
+              name === 'Power'       ? 'bg-orange-500 shadow-[0_0_6px_rgba(249,115,22,0.9)]' :
+              name === 'Exhaust'     ? 'bg-slate-400' :
+              name === 'Intake'      ? 'bg-cyan-400 shadow-[0_0_6px_rgba(34,211,238,0.9)]' :
+              name === 'Compression' ? 'bg-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.9)]' : 'bg-slate-600'
+
+            return (
+              <div key={i} className="flex items-center justify-between gap-3 text-[10px] font-mono py-0.5">
+                <div className="flex items-center gap-1.5">
+                  <span className={`w-1.5 h-1.5 rounded-full ${dotBg} transition-all duration-150`} />
+                  <span className="text-text-muted">Cyl {i + 1}</span>
+                </div>
+                <span className={`${strokeColor} tracking-wider uppercase transition-colors duration-150`}>
+                  {name}
+                </span>
+              </div>
+            )
+          })}
         </div>
       )}
 
       {/* Toolbar (bottom right) */}
       {isLoaded && (
         <div className="absolute bottom-3 right-3 z-20 flex gap-2">
+          <button
+            onClick={() => setIsFullscreen((v) => !v)}
+            className={`p-1.5 border font-mono text-xs uppercase transition-all ${
+              isFullscreen ? 'border-primary text-primary bg-primary/10' : 'border-bg-border text-text-muted hover:border-primary hover:text-primary'
+            }`}
+            title={isFullscreen ? 'Exit full screen' : 'Full screen viewer'}
+          >
+            {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+          </button>
           <button
             onClick={() => setAutoRotate((v) => !v)}
             className={`p-1.5 border font-mono text-xs uppercase transition-all ${

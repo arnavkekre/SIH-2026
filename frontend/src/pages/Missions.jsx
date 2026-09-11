@@ -8,7 +8,7 @@ import useAeroStore from '../store/useAeroStore.js'
 import ReplayControls from '../components/replay/ReplayControls.jsx'
 import StatusBadge from '../components/ui/StatusBadge.jsx'
 
-const chartTheme = { stroke: '#20384D', text: '#8FA8BC' }
+const chartTheme = { stroke: '#1A2E46', text: '#6F8EA9' }
 
 function fmt(val, d = 1) {
   if (val == null || isNaN(val)) return '--'
@@ -172,8 +172,8 @@ export default function Missions() {
                           <CartesianGrid stroke={chartTheme.stroke} strokeDasharray="3 3" />
                           <XAxis dataKey="t" tick={{ fill: chartTheme.text, fontSize: 9, fontFamily: 'monospace' }} tickLine={false} axisLine={false} />
                           <YAxis domain={[0,100]} tick={{ fill: chartTheme.text, fontSize: 9, fontFamily: 'monospace' }} tickLine={false} axisLine={false} width={25} />
-                          <Tooltip contentStyle={{ background:'#0D1B2A', border:'1px solid #20384D', fontFamily:'monospace', fontSize:10 }} />
-                          <Line type="monotone" dataKey="score" stroke="#35C9FF" strokeWidth={2} dot={false} />
+                          <Tooltip contentStyle={{ background:'#0A1320', border:'1px solid #1A2E46', fontFamily:'monospace', fontSize:10, color:'#E2F1FF' }} />
+                          <Line type="monotone" dataKey="score" stroke="#00F0FF" strokeWidth={2} dot={false} />
                         </LineChart>
                       </ResponsiveContainer>
                     ) : (
@@ -190,14 +190,14 @@ export default function Missions() {
                           <CartesianGrid stroke={chartTheme.stroke} strokeDasharray="3 3" />
                           <XAxis dataKey="t" tick={{ fill: chartTheme.text, fontSize: 9, fontFamily: 'monospace' }} tickLine={false} axisLine={false} />
                           <YAxis domain={[0,1]} tick={{ fill: chartTheme.text, fontSize: 9, fontFamily: 'monospace' }} tickLine={false} axisLine={false} width={25} />
-                          <Tooltip contentStyle={{ background:'#0D1B2A', border:'1px solid #20384D', fontFamily:'monospace', fontSize:10 }} />
+                          <Tooltip contentStyle={{ background:'#0A1320', border:'1px solid #1A2E46', fontFamily:'monospace', fontSize:10, color:'#E2F1FF' }} />
                           <defs>
                             <linearGradient id="aGrad2" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="0%" stopColor="#35C9FF" stopOpacity={0.3} />
-                              <stop offset="100%" stopColor="#35C9FF" stopOpacity={0} />
+                              <stop offset="0%" stopColor="#00F0FF" stopOpacity={0.3} />
+                              <stop offset="100%" stopColor="#00F0FF" stopOpacity={0} />
                             </linearGradient>
                           </defs>
-                          <Area type="monotone" dataKey="score" stroke="#35C9FF" strokeWidth={2} fill="url(#aGrad2)" dot={false} />
+                          <Area type="monotone" dataKey="score" stroke="#00F0FF" strokeWidth={2} fill="url(#aGrad2)" dot={false} />
                         </AreaChart>
                       </ResponsiveContainer>
                     ) : (
@@ -213,8 +213,8 @@ export default function Missions() {
                         <LineChart data={rpmData}>
                           <XAxis dataKey="t" tick={{ fill: chartTheme.text, fontSize: 9, fontFamily: 'monospace' }} tickLine={false} axisLine={false} />
                           <YAxis tick={{ fill: chartTheme.text, fontSize: 9, fontFamily: 'monospace' }} tickLine={false} axisLine={false} width={35} />
-                          <Tooltip contentStyle={{ background:'#0D1B2A', border:'1px solid #20384D', fontFamily:'monospace', fontSize:10 }} />
-                          <Line type="monotone" dataKey="v" stroke="#7C5CFF" strokeWidth={1.5} dot={false} name="RPM" />
+                          <Tooltip contentStyle={{ background:'#0A1320', border:'1px solid #1A2E46', fontFamily:'monospace', fontSize:10, color:'#E2F1FF' }} />
+                          <Line type="monotone" dataKey="v" stroke="#00E5A3" strokeWidth={1.5} dot={false} name="RPM" />
                         </LineChart>
                       </ResponsiveContainer>
                     ) : (
@@ -230,7 +230,7 @@ export default function Missions() {
                         <LineChart data={vibData}>
                           <XAxis dataKey="t" tick={{ fill: chartTheme.text, fontSize: 9, fontFamily: 'monospace' }} tickLine={false} axisLine={false} />
                           <YAxis tick={{ fill: chartTheme.text, fontSize: 9, fontFamily: 'monospace' }} tickLine={false} axisLine={false} width={35} />
-                          <Tooltip contentStyle={{ background:'#0D1B2A', border:'1px solid #20384D', fontFamily:'monospace', fontSize:10 }} />
+                          <Tooltip contentStyle={{ background:'#0A1320', border:'1px solid #1A2E46', fontFamily:'monospace', fontSize:10, color:'#E2F1FF' }} />
                           <Line type="monotone" dataKey="v" stroke="#f97316" strokeWidth={1.5} dot={false} name="Vibration G" />
                         </LineChart>
                       </ResponsiveContainer>

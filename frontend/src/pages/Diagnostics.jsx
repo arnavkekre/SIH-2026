@@ -37,8 +37,8 @@ function fmt(val, d = 1) {
 }
 
 const chartTheme = {
-  stroke: '#20384D',
-  text: '#8FA8BC',
+  stroke: '#1A2E46',
+  text: '#6F8EA9',
 }
 
 export default function Diagnostics() {
@@ -182,15 +182,15 @@ export default function Diagnostics() {
                   <CartesianGrid stroke={chartTheme.stroke} strokeDasharray="3 3" />
                   <XAxis dataKey="t" tick={{ fill: chartTheme.text, fontSize: 10, fontFamily: 'monospace' }} tickLine={false} axisLine={false} />
                   <YAxis domain={[0, 100]} tick={{ fill: chartTheme.text, fontSize: 10, fontFamily: 'monospace' }} tickLine={false} axisLine={false} width={30} />
-                  <Tooltip contentStyle={{ background: '#0D1B2A', border: '1px solid #20384D', fontFamily: 'monospace', fontSize: 11 }} />
-                  <ReferenceArea y1={80} y2={100} fill="#22c55e" fillOpacity={0.05} />
+                  <Tooltip contentStyle={{ background: '#0A1320', border: '1px solid #1A2E46', fontFamily: 'monospace', fontSize: 11, color: '#E2F1FF' }} />
+                  <ReferenceArea y1={80} y2={100} fill="#00E5A3" fillOpacity={0.05} />
                   <ReferenceArea y1={60} y2={80}  fill="#f59e0b" fillOpacity={0.05} />
                   <ReferenceArea y1={35} y2={60}  fill="#f97316" fillOpacity={0.05} />
                   <ReferenceArea y1={0}  y2={35}  fill="#ef4444" fillOpacity={0.05} />
-                  <ReferenceLine y={80} stroke="#22c55e" strokeDasharray="4 4" strokeWidth={1} label={{ value: 'HEALTHY', position: 'right', fill: '#22c55e', fontSize: 9, fontFamily: 'monospace' }} />
+                  <ReferenceLine y={80} stroke="#00E5A3" strokeDasharray="4 4" strokeWidth={1} label={{ value: 'HEALTHY', position: 'right', fill: '#00E5A3', fontSize: 9, fontFamily: 'monospace' }} />
                   <ReferenceLine y={60} stroke="#f59e0b" strokeDasharray="4 4" strokeWidth={1} label={{ value: 'WARNING', position: 'right', fill: '#f59e0b', fontSize: 9, fontFamily: 'monospace' }} />
                   <ReferenceLine y={35} stroke="#ef4444" strokeDasharray="4 4" strokeWidth={1} label={{ value: 'CRITICAL', position: 'right', fill: '#ef4444', fontSize: 9, fontFamily: 'monospace' }} />
-                  <Line type="monotone" dataKey="score" stroke="#35C9FF" strokeWidth={2} dot={false} name="Health Score" />
+                  <Line type="monotone" dataKey="score" stroke="#00F0FF" strokeWidth={2} dot={false} name="Health Score" />
                 </LineChart>
               </ResponsiveContainer>
               <div className="flex gap-4 mt-2">
