@@ -37,8 +37,8 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js'
 
 const TELEMETRY_RPM_MIN = 900
 const TELEMETRY_RPM_MAX = 3700
-const VISUAL_RPM_MIN = 30
-const VISUAL_RPM_MAX = 90
+const VISUAL_RPM_MIN = 10
+const VISUAL_RPM_MAX =400
 
 const PARTICLES_PER_CYL = 300
 const LAYER_COUNT = 300
