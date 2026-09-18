@@ -6,6 +6,7 @@ import ConnectionIndicator from '../ui/ConnectionIndicator.jsx';
 
 const NAV_LINKS = [
   { to: '/',            label: 'HOME'        },
+  { to: '/model',       label: 'ENGINE 3D'   },
   { to: '/dashboard',   label: 'DASHBOARD'   },
   { to: '/diagnostics', label: 'DIAGNOSTICS' },
   { to: '/missions',    label: 'MISSIONS'    },

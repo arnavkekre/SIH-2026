@@ -64,8 +64,9 @@ export default function TelemetryCard({
     return () => clearInterval(id);
   }, [updatedAt]);
 
-  const valueColor    = getValueColor(value, expected, thresholds);
-  const residualClass = getResidualClasses(residual, thresholds);
+  const effectiveExpected = expected ?? (value != null && residual != null ? Number((value - residual).toFixed(precision)) : null);
+  const valueColor        = getValueColor(value, effectiveExpected, thresholds);
+  const residualClass     = getResidualClasses(residual, thresholds);
 
   const residualSign  = residual != null ? (residual >= 0 ? '+' : '') : '';
   const residualLabel = residual != null ? `${residualSign}${Number(residual).toFixed(precision)}` : null;
@@ -100,9 +101,9 @@ export default function TelemetryCard({
       </div>
 
       {/* Expected annotation */}
-      {expected != null && (
+      {effectiveExpected != null && (
         <span className="font-mono text-[10px] text-text-muted">
-          EXP: {Number(expected).toFixed(precision)}{unit ? ` ${unit}` : ''}
+          EXP: {Number(effectiveExpected).toFixed(precision)}{unit ? ` ${unit}` : ''}
         </span>
       )}
 

@@ -157,6 +157,49 @@ const useAeroStore = create((set, get) => ({
     // Build expected values from residuals if raw telemetry is available
     const residuals = result.residuals || {}
 
+    const newExpectedValues = {
+      expected_rpm: result.expected_rpm != null
+        ? Number(result.expected_rpm)
+        : (newTelemetry.rpm != null && residuals.residual_rpm != null
+            ? Number((newTelemetry.rpm - residuals.residual_rpm).toFixed(1))
+            : get().expectedValues?.expected_rpm ?? null),
+      expected_cht_c: result.expected_cht_c != null
+        ? Number(result.expected_cht_c)
+        : (newTelemetry.cht_c != null && residuals.residual_cht_c != null
+            ? Number((newTelemetry.cht_c - residuals.residual_cht_c).toFixed(1))
+            : get().expectedValues?.expected_cht_c ?? null),
+      expected_egt_c: result.expected_egt_c != null
+        ? Number(result.expected_egt_c)
+        : (newTelemetry.egt_c != null && residuals.residual_egt_c != null
+            ? Number((newTelemetry.egt_c - residuals.residual_egt_c).toFixed(1))
+            : get().expectedValues?.expected_egt_c ?? null),
+      expected_oil_pressure_kpa: result.expected_oil_pressure_kpa != null
+        ? Number(result.expected_oil_pressure_kpa)
+        : (newTelemetry.oil_pressure_kpa != null && residuals.residual_oil_pressure_kpa != null
+            ? Number((newTelemetry.oil_pressure_kpa - residuals.residual_oil_pressure_kpa).toFixed(1))
+            : get().expectedValues?.expected_oil_pressure_kpa ?? null),
+      expected_oil_temperature_c: result.expected_oil_temperature_c != null
+        ? Number(result.expected_oil_temperature_c)
+        : (newTelemetry.oil_temperature_c != null && residuals.residual_oil_temperature_c != null
+            ? Number((newTelemetry.oil_temperature_c - residuals.residual_oil_temperature_c).toFixed(1))
+            : get().expectedValues?.expected_oil_temperature_c ?? null),
+      expected_fuel_flow_lph: result.expected_fuel_flow_lph != null
+        ? Number(result.expected_fuel_flow_lph)
+        : (newTelemetry.fuel_flow_lph != null && residuals.residual_fuel_flow_lph != null
+            ? Number((newTelemetry.fuel_flow_lph - residuals.residual_fuel_flow_lph).toFixed(2))
+            : get().expectedValues?.expected_fuel_flow_lph ?? null),
+      expected_vibration_g: result.expected_vibration_g != null
+        ? Number(result.expected_vibration_g)
+        : (newTelemetry.vibration_g != null && residuals.residual_vibration_g != null
+            ? Number((newTelemetry.vibration_g - residuals.residual_vibration_g).toFixed(3))
+            : get().expectedValues?.expected_vibration_g ?? null),
+      expected_injection_timing_deg: result.expected_injection_timing_deg != null
+        ? Number(result.expected_injection_timing_deg)
+        : (newTelemetry.injection_timing_deg != null && residuals.residual_injection_timing_deg != null
+            ? Number((newTelemetry.injection_timing_deg - residuals.residual_injection_timing_deg).toFixed(2))
+            : get().expectedValues?.expected_injection_timing_deg ?? null),
+    }
+
     // History updates
     const prevAnomalyHistory = get().anomalyHistory
     const prevHealthHistory = get().healthHistory
@@ -193,6 +236,7 @@ const useAeroStore = create((set, get) => ({
       timestampS: result.timestamp_s,
 
       telemetry: newTelemetry,
+      expectedValues: newExpectedValues,
       residuals,
 
       // AI/ML inference only
@@ -232,6 +276,26 @@ const useAeroStore = create((set, get) => ({
 
   reset: () => set({
     engineId: null, missionId: null, missionPhase: null, timestampS: null,
+    expectedValues: {
+      expected_rpm: null,
+      expected_cht_c: null,
+      expected_egt_c: null,
+      expected_oil_pressure_kpa: null,
+      expected_oil_temperature_c: null,
+      expected_fuel_flow_lph: null,
+      expected_vibration_g: null,
+      expected_injection_timing_deg: null,
+    },
+    residuals: {
+      residual_rpm: null,
+      residual_cht_c: null,
+      residual_egt_c: null,
+      residual_oil_pressure_kpa: null,
+      residual_oil_temperature_c: null,
+      residual_fuel_flow_lph: null,
+      residual_vibration_g: null,
+      residual_injection_timing_deg: null,
+    },
     anomalyScore: null, healthScore: null, healthStatus: null,
     fault: { type: null, confidence: null, severity: null, active: false },
     rul: { seconds: null, minutes: null, hours: null, status: null },

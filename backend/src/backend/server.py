@@ -374,6 +374,21 @@ def process_one_telemetry(
         if field in inference_telemetry:
             result[field] = inference_telemetry[field]
 
+    EXPECTED_TELEMETRY_FIELDS = (
+        "expected_rpm",
+        "expected_cht_c",
+        "expected_egt_c",
+        "expected_oil_pressure_kpa",
+        "expected_oil_temperature_c",
+        "expected_fuel_flow_lph",
+        "expected_vibration_g",
+        "expected_injection_timing_deg",
+    )
+
+    for field in EXPECTED_TELEMETRY_FIELDS:
+        if field in inference_telemetry:
+            result[field] = inference_telemetry[field]
+
     # --------------------------------------------------------
     # Store latest prediction.
     # --------------------------------------------------------

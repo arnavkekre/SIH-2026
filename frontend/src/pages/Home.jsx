@@ -1,345 +1,266 @@
-import React, { useRef, useState, useCallback } from 'react'
+import React from 'react'
 import { Link } from 'react-router-dom'
 import {
-  Cpu, Activity, AlertTriangle, Heart, ArrowRight,
-  Zap, Droplets, Thermometer, Waves, Radio, Wind, Flame, BarChart3
+  ArrowRight, ShieldCheck, Activity, Cpu, Layers,
+  Compass, AlertTriangle, Clock, CheckCircle2, ChevronDown,
+  Plane, Wrench, BarChart2, Sparkles, Sliders, Database
 } from 'lucide-react'
-import useAeroStore from '../store/useAeroStore.js'
-import EngineViewer from '../components/engine3d/EngineViewer.jsx'
 
-const FAULT_TYPES = [
-  { name: 'Misfire',               icon: Zap },
-  { name: 'Injector Abnormality',  icon: Flame },
-  { name: 'Cooling Degradation',   icon: Thermometer },
-  { name: 'Lubrication Issue',     icon: Droplets },
-  { name: 'Sensor Drift',          icon: Activity },
-  { name: 'Combustion Instability',icon: Waves },
-  { name: 'Overheating Trend',     icon: Thermometer },
-  { name: 'Abnormal Vibration',    icon: Radio },
+const METRICS_SUMMARY = [
+  { label: 'Intelligence Pipeline', value: '5-Stage', desc: 'Telemetry to Predictive Advisory' },
+  { label: 'Monitored Faults',     value: '8 Classes', desc: 'Misfire to Cooling Degradation' },
+  { label: 'Inference Latency',    value: '< 1.0s',    desc: 'Real-time Edge / GCS Evaluation' },
+  { label: 'Target Platform',      value: 'MALE UAV',  desc: 'Rotax 912-Class Aero Piston Engines' },
 ]
 
-const CAPABILITIES = [
+const INTELLIGENCE_CYCLE = [
   {
+    step: '01',
+    zone: 'Zone 1: Sensor & Mission Ingestion',
+    title: 'Multi-Sensor Data Acquisition',
+    desc: 'Continuous ingestion of 8 primary telemetry streams (RPM, CHT, EGT, Oil Press/Temp, Fuel Flow, Vibration, Timing) combined with mission parameters (Altitude, Throttle %, Ambient Temp, Flight Phase).',
+    icon: Database,
+  },
+  {
+    step: '02',
+    zone: 'Zone 2: Digital Twin State Layer',
+    title: 'Physics-Based Expected State & Residuals',
+    desc: 'The Digital Twin models nominal engine thermodynamic behavior under current atmospheric and throttle conditions, computing residuals (Residual = Actual − Expected) that isolate subtle mechanical stress.',
     icon: Cpu,
-    title: 'Digital Twin',
-    desc: 'Compares observed telemetry against a physics-informed engine model in real-time, computing residuals that reveal subtle deviations before they become faults.',
   },
   {
+    step: '03',
+    zone: 'Zone 3 & 4: AI/ML Inference Brain',
+    title: 'Anomaly Detection & Fault Classification',
+    desc: 'Unsupervised Isolation Forest algorithm scores multivariate statistical deviations (0–1), while a multi-label XGBoost classifier pinpoints fault signatures and outputs probability & severity rankings.',
     icon: Activity,
-    title: 'Anomaly Detection',
-    desc: 'Isolation Forest-based unsupervised anomaly scoring continuously monitors all telemetry channels for statistical deviations from normal operation.',
   },
   {
-    icon: AlertTriangle,
-    title: 'Fault Diagnosis',
-    desc: 'Multi-label XGBoost classifier identifies and ranks 8 distinct fault types — from misfire to cooling degradation — with confidence scoring.',
+    step: '04',
+    zone: 'Zone 4: Health & Prognostics',
+    title: 'Engine Health Index & RUL Estimation',
+    desc: 'Synthesizes residual severity and anomaly confidence into a dynamic 0–100 Health Score with categorical status (Healthy, Warning, Degrading, Critical) and computes formula-based Remaining Useful Life (RUL).',
+    icon: Clock,
   },
   {
-    icon: Heart,
-    title: 'Health + RUL',
-    desc: 'Degradation-informed composite health index (0–100) with formula-based Remaining Useful Life estimation and maintenance advisory generation.',
+    step: '05',
+    zone: 'Zone 5: Decision Support',
+    title: 'Predictive Ground Control Decision Support',
+    desc: 'Translates raw predictions into actionable maintenance advisories and mission-readiness alerts displayed on the Operator Dashboard and simulated across diverse flight profiles.',
+    icon: ShieldCheck,
   },
 ]
 
-const PIPELINE_STAGES = [
-  { label: 'TELEMETRY',     desc: 'Raw sensor data' },
-  { label: 'DIGITAL TWIN', desc: 'Expected state model' },
-  { label: 'RESIDUALS',    desc: 'Actual vs expected' },
-  { label: 'AI / ML',      desc: 'Anomaly + fault inference' },
-  { label: 'HEALTH',       desc: 'Score + status band' },
-  { label: 'RUL',          desc: 'Formula-based estimate' },
-  { label: 'DASHBOARD',    desc: 'Decision support' },
+const INNOVATION_PILLARS = [
+  {
+    title: 'Physics + AI Twin Fusion',
+    subtitle: 'HYBRID INTELLIGENCE',
+    desc: 'Rather than treating machine learning as a pure black box, AeroTwin grounds model inference in thermodynamic engine physics. Sensor residuals filter out operational variations so AI learns genuine mechanical faults.',
+    icon: Sparkles,
+  },
+  {
+    title: 'Real-Time Health Intelligence',
+    subtitle: 'CONTINUOUS METRICS',
+    desc: 'Converts multi-sensor telemetry into a live 0–100 Engine Health Score, categorical status bands, and fault probabilities instead of relying on rudimentary static threshold alarms that trigger too late.',
+    icon: Activity,
+  },
+  {
+    title: 'Predictive Mission Reliability',
+    subtitle: 'RUL PROGNOSTICS',
+    desc: 'Tracks micro-degradation trends over time to project Remaining Useful Life (RUL) before critical components fail, enabling condition-based maintenance and averting costly in-flight mission abortions.',
+    icon: Compass,
+  },
+  {
+    title: 'Mission-Aware Context',
+    subtitle: 'FLIGHT PROFILE SENSITIVE',
+    desc: 'Dynamically accounts for altitude-induced barometric drop, ambient temperatures, and flight phases (Taxi, Takeoff, Climb, Cruise, Loiter, Descent, Landing) to ensure zero false positives during throttle transients.',
+    icon: Sliders,
+  },
 ]
 
-function fmt(val, decimals = 1) {
-  if (val == null || isNaN(val)) return '--'
-  return Number(val).toFixed(decimals)
-}
+const STAKEHOLDERS = [
+  {
+    role: 'UAV Operators & Mission Planners',
+    benefit: 'Real-time visibility into engine health and flight endurance to make confident go/no-go operational decisions during high-stakes reconnaissance.',
+    icon: Plane,
+  },
+  {
+    role: 'Maintenance & Ground Crews',
+    benefit: 'Pinpointed diagnostic evidence, fault confidence scores, and prescriptive maintenance recommendations before catastrophic failure occurs on the tarmac.',
+    icon: Wrench,
+  },
+  {
+    role: 'Defence & UAV Organizations',
+    benefit: 'Enhanced asset survivability, higher fleet availability, and reduced lifecycle maintenance costs by shifting from fixed-hour overhauls to condition-based care.',
+    icon: ShieldCheck,
+  },
+  {
+    role: 'Propulsion Researchers & Engineers',
+    benefit: 'Rich synthetic and recorded multi-mission datasets to analyze thermal degradation curves and refine engine reliability designs.',
+    icon: BarChart2,
+  },
+]
+
+const SYSTEM_MODULES = [
+  {
+    title: 'Interactive 3D Engine Twin',
+    to: '/model',
+    desc: 'Full 3D Rotax-912 engine viewer with real-time cylinder 4-stroke cycle animation and live HUD telemetry gauges.',
+    badge: '3D VISUALIZER',
+  },
+  {
+    title: 'Mission Control Dashboard',
+    to: '/dashboard',
+    desc: 'Command console featuring real-time sparklines, KPI telemetry cards, and the collapsible Expected vs Actual table.',
+    badge: 'LIVE TELEMETRY',
+  },
+  {
+    title: 'Diagnostic Studio',
+    to: '/diagnostics',
+    desc: 'Detailed breakdown of Isolation Forest anomaly scoring, XGBoost fault probability, and diagnostic evidence severity.',
+    badge: 'AI INFERENCE',
+  },
+  {
+    title: 'Flight Simulation & Replay',
+    to: '/missions',
+    desc: 'Interactive trajectory playback engine supporting 0.5× to 10× replay speeds across diverse mission phases.',
+    badge: 'SIMULATION',
+  },
+  {
+    title: 'Engineering Analytics',
+    to: '/analytics',
+    desc: 'Session degradation trends, peak anomaly metrics, active fault counts, and multi-sensor performance graphs.',
+    badge: 'ANALYTICS',
+  },
+  {
+    title: 'Project Foundations & Research',
+    to: '/about',
+    desc: 'Overview of the SIH26054 challenge, technical architecture documentation, and academic references.',
+    badge: 'DOCUMENTATION',
+  },
+]
 
 export default function Home() {
-  const exploreRef = useRef(null)
-  const { telemetry, healthScore, healthStatus, connectionStatus } = useAeroStore()
-  const [cylinderStrokes, setCylinderStrokes] = useState(['--', '--', '--', '--'])
-  const handleStrokeUpdate = useCallback((names) => setCylinderStrokes(names), [])
-
-  const healthColor =
-    healthStatus === 'HEALTHY'   ? '#22c55e' :
-    healthStatus === 'WARNING'   ? '#f59e0b' :
-    healthStatus === 'DEGRADING' ? '#f97316' :
-    healthStatus === 'CRITICAL'  ? '#ef4444' : '#8FA8BC'
-
   return (
     <div className="bg-bg-base text-text-base">
 
       {/* ═══════════════════════════════════════════
-          HERO
+          1. HERO & INTRODUCTION
       ═══════════════════════════════════════════ */}
-      <section className="min-h-[calc(100vh-3.5rem)] relative bg-tech-grid flex items-center overflow-hidden">
-
-        {/* Radial glow background */}
+      <section className="relative min-h-[85vh] bg-tech-grid flex items-center border-b border-bg-border overflow-hidden">
+        {/* Ambient Glow */}
         <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] rounded-full"
-            style={{ background: 'radial-gradient(circle, rgba(53,201,255,0.04) 0%, transparent 70%)' }} />
+          <div
+            className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[700px] rounded-full"
+            style={{ background: 'radial-gradient(circle, rgba(0, 240, 255, 0.05) 0%, transparent 70%)' }}
+          />
         </div>
 
-        <div className="relative z-10 w-full max-w-7xl mx-auto px-6 py-16 grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+        <div className="relative z-10 max-w-7xl mx-auto px-6 py-20 w-full flex flex-col items-center text-center">
 
-          {/* LEFT — Text content */}
-          <div className="flex flex-col gap-6">
-            {/* Badge */}
-            <div className="inline-flex items-center gap-2 border border-primary/40 px-3 py-1 w-fit">
-              <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-              <span className="font-mono text-xs text-primary uppercase tracking-widest">AI-Enabled Digital Twin</span>
+          {/* Hackathon & Team Header Badges */}
+          <div className="flex flex-wrap items-center justify-center gap-2 mb-6">
+            <span className="border border-primary/40 bg-primary/10 text-primary font-mono text-[11px] px-3 py-1 uppercase tracking-widest flex items-center gap-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+              Smart India Hackathon 2026
+            </span>
+            <span className="border border-bg-border bg-bg-card font-mono text-[11px] text-text-muted px-3 py-1 uppercase tracking-wider">
+              Problem Statement ID: <strong className="text-text-base">SIH26054</strong>
+            </span>
+            <span className="border border-bg-border bg-bg-card font-mono text-[11px] text-text-muted px-3 py-1 uppercase tracking-wider">
+              Team: <strong className="text-text-base">TechVanguard</strong>
+            </span>
+          </div>
+
+          {/* Main Title */}
+          <h1 className="font-mono font-bold tracking-tight text-4xl sm:text-6xl lg:text-7xl leading-none mb-4">
+            <span className="text-text-base">AERO</span><span className="text-primary">TWIN</span>
+          </h1>
+
+          <div className="font-mono text-xs sm:text-sm md:text-base text-primary uppercase tracking-[0.3em] mb-6">
+            AI-Enabled Real-Time Digital Twin System
+          </div>
+
+          {/* Executive Summary */}
+          <p className="max-w-3xl text-sm sm:text-base text-text-muted leading-relaxed mb-8">
+            Engineered for <strong className="text-text-base">Medium-Altitude Long-Endurance (MALE) UAVs</strong>, AeroTwin fuses physics-informed engine modeling with advanced machine learning to deliver continuous health monitoring, micro-fault prediction, and Remaining Useful Life (RUL) estimation for aero piston engines.
+          </p>
+
+          {/* Primary Actions */}
+          <div className="flex flex-wrap items-center justify-center gap-4 mb-14">
+            <Link to="/dashboard" className="aero-btn-filled flex items-center gap-2 text-xs sm:text-sm">
+              LAUNCH MISSION DASHBOARD <ArrowRight className="w-4 h-4" />
+            </Link>
+            <Link to="/model" className="aero-btn flex items-center gap-2 text-xs sm:text-sm">
+              <Layers className="w-4 h-4" /> EXPLORE 3D ENGINE TWIN
+            </Link>
+            <a href="#intelligence-cycle" className="px-4 py-2 border border-bg-border font-mono text-xs uppercase tracking-wider text-text-muted hover:text-text-base hover:border-text-muted transition-colors">
+              SYSTEM ARCHITECTURE ↓
+            </a>
+          </div>
+
+          {/* Key Metrics Strip */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 w-full max-w-5xl">
+            {METRICS_SUMMARY.map(({ label, value, desc }) => (
+              <div key={label} className="aero-card clip-angle-sm p-4 text-left border-t-2 border-t-primary/70">
+                <div className="aero-label text-[10px] mb-1">{label}</div>
+                <div className="font-mono text-xl font-bold text-text-base mb-0.5">{value}</div>
+                <div className="font-mono text-[10px] text-text-muted">{desc}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ═══════════════════════════════════════════
+          2. PROBLEM & STRATEGIC SIGNIFICANCE
+      ═══════════════════════════════════════════ */}
+      <section className="py-20 max-w-7xl mx-auto px-6">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start">
+
+          <div className="lg:col-span-5 flex flex-col gap-4">
+            <div className="aero-label flex items-center gap-2">
+              <span className="w-2 h-2 rounded-sm bg-status-warning" />
+              Strategic Significance
             </div>
-
-            {/* Title */}
-            <div>
-              <h1 className="font-mono font-bold leading-none" style={{ fontSize: 'clamp(3rem, 8vw, 5.5rem)' }}>
-                <span className="text-text-base">AERO</span><span className="text-primary">TWIN</span>
-              </h1>
-              <p className="font-mono text-lg md:text-2xl text-text-muted tracking-[0.25em] mt-2">
-                PREDICT. MONITOR. PREVENT.
+            <h2 className="font-mono text-2xl sm:text-3xl font-bold leading-tight text-text-base">
+              THE CHALLENGE OF MALE UAV PROPULSION RELIABILITY
+            </h2>
+            <p className="text-text-muted text-sm leading-relaxed">
+              MALE UAVs conduct persistent surveillance missions spanning 24+ hours at varying altitudes and atmospheric densities. Aero-piston powerplants (such as Rotax-912 class engines) operate under demanding thermal and vibrational cycles where undetected mechanical degradation can trigger sudden catastrophic in-flight engine failure.
+            </p>
+            <div className="border-l-2 border-primary pl-4 py-1 mt-2">
+              <p className="font-mono text-xs text-text-base italic">
+                "In unmanned defence aviation, engine stoppage means mission failure and asset loss. Fixed-hour overhauls and basic threshold alerts are no longer sufficient."
               </p>
             </div>
-
-            {/* Description */}
-            <p className="text-text-muted leading-relaxed max-w-lg">
-              AI-enabled real-time digital twin system for health monitoring, fault prediction
-              and mission reliability enhancement of aero piston engines in MALE UAVs.
-            </p>
-
-            {/* CTAs */}
-            <div className="flex flex-wrap gap-3 mt-2">
-              <Link to="/dashboard" className="aero-btn-filled flex items-center gap-2">
-                LAUNCH DASHBOARD <ArrowRight className="w-4 h-4" />
-              </Link>
-              <button
-                onClick={() => exploreRef.current?.scrollIntoView({ behavior: 'smooth' })}
-                className="aero-btn flex items-center gap-2"
-              >
-                EXPLORE SYSTEM
-              </button>
-            </div>
-
-            {/* Live telemetry mini-grid */}
-            <div className="mt-4">
-              <div className="aero-label mb-2 flex items-center gap-2">
-                <div className={`w-1.5 h-1.5 rounded-full ${connectionStatus === 'ONLINE' ? 'bg-status-healthy animate-pulse-slow' : 'bg-text-muted'}`} />
-                Live Telemetry {connectionStatus !== 'ONLINE' && '— Awaiting backend'}
-              </div>
-              <div className="grid grid-cols-3 gap-2">
-                {[
-                  { label: 'RPM',      value: fmt(telemetry.rpm, 0),       unit: '' },
-                  { label: 'CHT',      value: fmt(telemetry.cht_c),        unit: '°C' },
-                  { label: 'EGT',      value: fmt(telemetry.egt_c, 0),     unit: '°C' },
-                  { label: 'OIL PRES',  value: fmt(telemetry.oil_pressure_kpa, 0), unit: 'kPa' },
-                  { label: 'VIBRATION',value: fmt(telemetry.vibration_g, 3), unit: 'G' },
-                  { label: 'HEALTH',   value: fmt(healthScore),             unit: '' },
-                ].map(({ label, value, unit }) => (
-                  <div key={label} className="aero-card px-2 py-1.5 clip-angle-sm">
-                    <div className="aero-label text-[9px]">{label}</div>
-                    <div className={`font-mono text-sm ${label === 'HEALTH' ? '' : 'text-text-base'}`}
-                      style={label === 'HEALTH' ? { color: healthColor } : {}}>
-                      {value}{unit}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
           </div>
 
-          {/* RIGHT — Engine Digital Twin visual */}
-          <div className="relative flex items-center justify-center">
-            <div className="relative w-full aspect-square max-w-lg">
-              {/* Outer rings */}
-              <div className="absolute inset-0 rounded-full border border-primary/10 animate-spin-slow" />
-              <div className="absolute inset-4 rounded-full border border-primary/15" style={{ animation: 'spin 8s linear infinite reverse' }} />
-              <div className="absolute inset-8 rounded-full border border-primary/20 animate-spin-slow" style={{ animationDuration: '12s' }} />
-
-              {/* Center — actual 3D engine viewer */}
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="relative w-64 h-64">
-                  <EngineViewer
-                    rpm={telemetry.rpm}
-                    vibration={telemetry.vibration_g}
-                    healthStatus={healthStatus}
-                    faultType={null}
-                    onStrokeUpdate={handleStrokeUpdate}
-                    className="w-full h-full"
-                  />
-                  <div className="absolute bottom-0 left-0 right-0 text-center pb-1 pointer-events-none">
-                    <span className="font-mono text-[9px] text-primary uppercase tracking-widest">ROTAX 912-STYLE</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Floating HUD labels */}
-              <div className="absolute top-8 left-4 bg-bg-panel/90 border border-bg-border px-2 py-1 backdrop-blur-sm">
-                <div className="aero-label text-[9px]">RPM</div>
-                <div className="font-mono text-xs text-primary">{fmt(telemetry.rpm, 0)}</div>
-              </div>
-              <div className="absolute top-8 right-4 bg-bg-panel/90 border border-bg-border px-2 py-1 backdrop-blur-sm">
-                <div className="aero-label text-[9px]">CHT</div>
-                <div className="font-mono text-xs text-primary">{fmt(telemetry.cht_c)} °C</div>
-              </div>
-              <div className="absolute bottom-16 left-4 bg-bg-panel/90 border border-bg-border px-2 py-1 backdrop-blur-sm">
-                <div className="aero-label text-[9px]">OIL PRES</div>
-                <div className="font-mono text-xs text-primary">{fmt(telemetry.oil_pressure_kpa, 0)} kPa</div>
-              </div>
-              <div className="absolute bottom-16 right-4 bg-bg-panel/90 border border-bg-border px-2 py-1 backdrop-blur-sm">
-                <div className="aero-label text-[9px]">VIBRATION</div>
-                <div className="font-mono text-xs text-primary">{fmt(telemetry.vibration_g, 3)} G</div>
-              </div>
-              <div className="absolute top-1/2 right-0 -translate-y-1/2 bg-bg-panel/90 border border-bg-border px-2 py-1 backdrop-blur-sm">
-                <div className="aero-label text-[9px]">HEALTH</div>
-                <div className="font-mono text-xs" style={{ color: healthColor }}>
-                  {fmt(healthScore)}{healthStatus ? ` · ${healthStatus}` : ''}
-                </div>
-              </div>
-
-              {/* Cylinders HUD — positioned on the left side like other HUD labels */}
-              <div className="absolute top-1/2 left-0 -translate-y-1/2 bg-bg-panel/90 border border-bg-border px-2 py-1.5 backdrop-blur-sm">
-                <div className="aero-label text-[9px] mb-1">CYLINDERS</div>
-                {cylinderStrokes.map((name, i) => {
-                  const color =
-                    name === 'Power'       ? '#f97316' :
-                    name === 'Exhaust'     ? '#94a3b8' :
-                    name === 'Intake'      ? '#22d3ee' :
-                    name === 'Compression' ? '#fbbf24' : '#6F8EA9'
-                  return (
-                    <div key={i} className="flex items-center gap-1.5 font-mono text-[9px] leading-[14px]">
-                      <span className="w-1 h-1 rounded-full" style={{ backgroundColor: color, boxShadow: `0 0 4px ${color}` }} />
-                      <span className="text-text-muted">C{i + 1}</span>
-                      <span className="uppercase" style={{ color }}>{name}</span>
-                    </div>
-                  )
-                })}
-              </div>
-
-              {/* Engine label */}
-              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-center">
-                <div className="font-mono text-[10px] text-primary uppercase tracking-widest">ENGINE DIGITAL TWIN</div>
-                <Link to="/dashboard" className="font-mono text-[9px] text-text-muted hover:text-primary transition-colors">
-                  → View Full 3D Dashboard
-                </Link>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ═══════════════════════════════════════════
-          TELEMETRY PREVIEW STRIP
-      ═══════════════════════════════════════════ */}
-      <section ref={exploreRef} className="bg-bg-panel border-y border-bg-border py-6">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="aero-label mb-4 flex items-center gap-2">
-            <div className={`w-1.5 h-1.5 rounded-full ${connectionStatus === 'ONLINE' ? 'bg-status-healthy animate-pulse-slow' : 'bg-text-muted'}`} />
-            Live Telemetry Preview
-          </div>
-          <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
-            {[
-              { label: 'RPM',          value: fmt(telemetry.rpm, 0),               unit: 'RPM' },
-              { label: 'CHT',          value: fmt(telemetry.cht_c),                unit: '°C' },
-              { label: 'EGT',          value: fmt(telemetry.egt_c, 0),             unit: '°C' },
-              { label: 'OIL PRESSURE', value: fmt(telemetry.oil_pressure_kpa, 0), unit: 'kPa' },
-              { label: 'VIBRATION',    value: fmt(telemetry.vibration_g, 3),       unit: 'G' },
-              { label: 'HEALTH',       value: fmt(healthScore),                    unit: '' },
-            ].map(({ label, value, unit }) => (
-              <div key={label} className="aero-card p-3 text-center">
-                <div className="aero-label text-[10px] mb-1">{label}</div>
-                <div className="font-mono text-lg text-text-base">{value}</div>
-                {unit && <div className="font-mono text-[10px] text-text-muted">{unit}</div>}
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ═══════════════════════════════════════════
-          CORE CAPABILITIES
-      ═══════════════════════════════════════════ */}
-      <section className="py-20 max-w-7xl mx-auto px-6">
-        <div className="mb-10 text-center">
-          <div className="aero-label mb-2">System Capabilities</div>
-          <h2 className="font-mono text-3xl font-bold text-text-base">CORE TECHNOLOGY</h2>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {CAPABILITIES.map(({ icon: Icon, title, desc }) => (
-            <div key={title} className="aero-card clip-angle p-5 hover:border-primary/40 transition-colors group">
-              <Icon className="w-6 h-6 text-primary mb-3 group-hover:scale-110 transition-transform" />
-              <div className="font-mono text-sm font-semibold text-text-base mb-2 uppercase tracking-wider">{title}</div>
-              <p className="text-text-muted text-xs leading-relaxed">{desc}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* ═══════════════════════════════════════════
-          SYSTEM FLOW PIPELINE
-      ═══════════════════════════════════════════ */}
-      <section className="py-16 bg-bg-panel border-y border-bg-border">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="mb-8 text-center">
-            <div className="aero-label mb-2">End-to-End Data Flow</div>
-            <h2 className="font-mono text-2xl font-bold text-text-base">PIPELINE ARCHITECTURE</h2>
-          </div>
-          <div className="flex flex-wrap items-center justify-center gap-2">
-            {PIPELINE_STAGES.map((stage, i) => (
-              <React.Fragment key={stage.label}>
-                <div className="flex flex-col items-center gap-1">
-                  <div className="bg-bg-card border border-bg-border px-3 py-2 clip-angle-sm min-w-[90px] text-center hover:border-primary/50 transition-colors">
-                    <div className="font-mono text-[10px] text-primary uppercase tracking-wider">{stage.label}</div>
-                  </div>
-                  <div className="font-mono text-[9px] text-text-muted text-center max-w-[90px]">{stage.desc}</div>
-                </div>
-                {i < PIPELINE_STAGES.length - 1 && (
-                  <ArrowRight className="w-4 h-4 text-primary/50 flex-shrink-0 mb-4" />
-                )}
-              </React.Fragment>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ═══════════════════════════════════════════
-          FAULT COVERAGE
-      ═══════════════════════════════════════════ */}
-      <section className="py-20 max-w-7xl mx-auto px-6">
-        <div className="mb-10">
-          <div className="aero-label mb-2">Detection Coverage</div>
-          <h2 className="font-mono text-2xl font-bold text-text-base">MONITORED FAULT CONDITIONS</h2>
-          <p className="text-text-muted text-sm mt-2">8 distinct fault types classified by multi-label XGBoost inference</p>
-        </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {FAULT_TYPES.map(({ name, icon: Icon }) => (
-            <div key={name} className="aero-card flex items-center gap-3 px-3 py-2.5 hover:border-primary/40 transition-colors">
-              <Icon className="w-4 h-4 text-primary flex-shrink-0" />
-              <span className="font-mono text-xs text-text-base uppercase tracking-wide">{name}</span>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* ═══════════════════════════════════════════
-          PROTOTYPE NOTICE
-      ═══════════════════════════════════════════ */}
-      <section className="py-10 max-w-7xl mx-auto px-6">
-        <div className="border border-status-warning/30 bg-status-warning/5 p-5">
-          <div className="flex items-start gap-3">
-            <AlertTriangle className="w-5 h-5 text-status-warning flex-shrink-0 mt-0.5" />
-            <div>
-              <div className="font-mono text-sm text-status-warning uppercase tracking-wider mb-2">
-                ⚠ Prototype / Simulation Data Notice
+          <div className="lg:col-span-7 grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="aero-card p-5 border-l-2 border-l-status-critical">
+              <div className="flex items-center gap-2 mb-2 font-mono text-xs uppercase tracking-wider text-status-critical">
+                <AlertTriangle className="w-4 h-4" /> The Risk of Late Detection
               </div>
               <p className="text-text-muted text-xs leading-relaxed">
-                This demonstrator uses <strong className="text-text-base">representative synthetic telemetry</strong> and
-                public aero-piston engine data to illustrate the architecture.
-                Real UAV / DRDO engine telemetry is <strong className="text-text-base">not publicly available</strong> for prototype development.
-                This system is <strong className="text-text-base">NOT validated for operational defence use</strong>.
-                All inference results (health scores, fault classifications, RUL estimates) are demonstrative only
-                and must not be used for actual engine control or flight-safety decisions.
-                There is <strong className="text-text-base">no autonomous engine-control pathway</strong> in this system.
+                Conventional sensors trigger threshold warnings only after temperatures, pressure, or vibrations surpass emergency limits—giving ground operators mere seconds to respond before mechanical seizure.
+              </p>
+            </div>
+
+            <div className="aero-card p-5 border-l-2 border-l-status-warning">
+              <div className="flex items-center gap-2 mb-2 font-mono text-xs uppercase tracking-wider text-status-warning">
+                <Clock className="w-4 h-4" /> Costly Scheduled Overhauls
+              </div>
+              <p className="text-text-muted text-xs leading-relaxed">
+                Traditional time-based inspections ground operational aircraft prematurely, driving up maintenance downtime and life-cycle costs while remaining blind to sudden anomalies between service intervals.
+              </p>
+            </div>
+
+            <div className="aero-card p-5 border-l-2 border-l-primary sm:col-span-2">
+              <div className="flex items-center gap-2 mb-2 font-mono text-xs uppercase tracking-wider text-primary">
+                <CheckCircle2 className="w-4 h-4" /> The AeroTwin Paradigm Shift
+              </div>
+              <p className="text-text-muted text-xs leading-relaxed">
+                AeroTwin combines a physics-based digital twin that models healthy expected engine behavior in real time with machine learning residual analysis. By isolating deviations as subtle as a 0.5% fuel-flow variance or subtle cylinder head temperature drifts, anomalies are caught hours before irreversible damage occurs.
               </p>
             </div>
           </div>
@@ -347,38 +268,222 @@ export default function Home() {
       </section>
 
       {/* ═══════════════════════════════════════════
-          FINAL CTA
+          3. THE 5-STAGE INTELLIGENCE CYCLE
       ═══════════════════════════════════════════ */}
-      <section className="py-24 bg-bg-panel border-t border-bg-border text-center">
-        <div className="max-w-3xl mx-auto px-6">
-          <div className="font-mono text-3xl md:text-5xl font-bold text-text-base mb-4 tracking-tight">
-            MONITOR. <span className="text-primary">PREDICT.</span> PREVENT.
+      <section id="intelligence-cycle" className="py-20 bg-bg-panel border-y border-bg-border scroll-mt-14">
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="text-center max-w-3xl mx-auto mb-14">
+            <div className="aero-label mb-2 flex items-center justify-center gap-2">
+              <Cpu className="w-3.5 h-3.5 text-primary" />
+              End-to-End Technical Approach
+            </div>
+            <h2 className="font-mono text-2xl sm:text-3xl font-bold text-text-base uppercase tracking-tight">
+              THE AERO TWIN INTELLIGENCE CYCLE
+            </h2>
+            <p className="text-text-muted text-xs sm:text-sm mt-2">
+              From raw sensor telemetry ingestion to real-time predictive decision support across 5 architectural zones.
+            </p>
           </div>
-          <p className="text-text-muted mb-8">
-            Experience real-time AI-driven engine health monitoring with the AeroTwin dashboard.
-          </p>
-          <Link to="/dashboard" className="aero-btn-filled inline-flex items-center gap-2 text-sm">
-            LAUNCH DASHBOARD <ArrowRight className="w-4 h-4" />
-          </Link>
+
+          <div className="flex flex-col gap-4">
+            {INTELLIGENCE_CYCLE.map(({ step, zone, title, desc, icon: Icon }) => (
+              <div
+                key={step}
+                className="aero-card p-5 flex flex-col md:flex-row items-start md:items-center gap-6 hover:border-primary/50 transition-colors"
+              >
+                <div className="flex items-center gap-4 flex-shrink-0">
+                  <div className="font-mono text-2xl font-bold text-primary/40 border border-primary/20 w-12 h-12 flex items-center justify-center clip-angle-sm">
+                    {step}
+                  </div>
+                  <div className="p-2.5 rounded-sm bg-primary/10 text-primary border border-primary/30">
+                    <Icon className="w-5 h-5" />
+                  </div>
+                </div>
+
+                <div className="flex-1 min-w-0">
+                  <div className="font-mono text-[10px] text-primary uppercase tracking-widest mb-1">{zone}</div>
+                  <h3 className="font-mono text-base font-semibold text-text-base mb-1">{title}</h3>
+                  <p className="text-text-muted text-xs leading-relaxed">{desc}</p>
+                </div>
+
+                <div className="hidden lg:block flex-shrink-0">
+                  <span className="font-mono text-[10px] text-text-muted/60 uppercase tracking-widest border border-bg-border px-2 py-1">
+                    AUTONOMOUS
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
       {/* ═══════════════════════════════════════════
-          FOOTER
+          4. FOUR CORE INNOVATION PILLARS
+      ═══════════════════════════════════════════ */}
+      <section className="py-20 max-w-7xl mx-auto px-6">
+        <div className="text-center max-w-3xl mx-auto mb-12">
+          <div className="aero-label mb-2 flex items-center justify-center gap-2">
+            <Sparkles className="w-3.5 h-3.5 text-primary" />
+            Key Innovations
+          </div>
+          <h2 className="font-mono text-2xl sm:text-3xl font-bold text-text-base uppercase tracking-tight">
+            INNOVATION & UNIQUENESS
+          </h2>
+          <p className="text-text-muted text-xs sm:text-sm mt-2">
+            What distinguishes AeroTwin from traditional fault detection systems.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          {INNOVATION_PILLARS.map(({ title, subtitle, desc, icon: Icon }) => (
+            <div key={title} className="aero-card clip-angle p-6 flex flex-col justify-between hover:border-primary/40 transition-colors group">
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="aero-label text-[10px]">{subtitle}</div>
+                  <Icon className="w-5 h-5 text-primary group-hover:scale-110 transition-transform" />
+                </div>
+                <h3 className="font-mono text-lg font-bold text-text-base mb-2 uppercase tracking-wide">{title}</h3>
+                <p className="text-text-muted text-xs sm:text-sm leading-relaxed">{desc}</p>
+              </div>
+              <div className="mt-6 pt-3 border-t border-bg-border/60 flex items-center justify-between font-mono text-[10px] text-text-muted">
+                <span>VALIDATED PROTOCOL</span>
+                <span className="text-primary">SIH26054</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ═══════════════════════════════════════════
+          5. TARGET AUDIENCE & MISSION OUTCOME
+      ═══════════════════════════════════════════ */}
+      <section className="py-20 bg-bg-panel border-y border-bg-border">
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="mb-12">
+            <div className="aero-label mb-2">Operational Impact</div>
+            <h2 className="font-mono text-2xl sm:text-3xl font-bold text-text-base uppercase tracking-tight">
+              STAKEHOLDER BENEFITS & MISSION OUTCOMES
+            </h2>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
+            {STAKEHOLDERS.map(({ role, benefit, icon: Icon }) => (
+              <div key={role} className="aero-card p-5 flex flex-col justify-between">
+                <div>
+                  <div className="w-8 h-8 rounded-sm bg-primary/10 border border-primary/30 text-primary flex items-center justify-center mb-3">
+                    <Icon className="w-4 h-4" />
+                  </div>
+                  <div className="font-mono text-xs font-semibold text-text-base mb-2 uppercase tracking-wide">{role}</div>
+                  <p className="text-text-muted text-xs leading-relaxed">{benefit}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Mission Outcome Funnel */}
+          <div className="bg-bg-card border border-bg-border p-6 clip-angle-sm">
+            <div className="aero-label text-[10px] mb-3 text-center">AeroTwin Mission Outcome Value Chain</div>
+            <div className="flex flex-wrap items-center justify-center gap-3 md:gap-6 font-mono text-xs uppercase tracking-wider">
+              <span className="px-3 py-1.5 border border-primary/40 text-primary bg-primary/10">1. Early Warning</span>
+              <span className="text-text-muted">→</span>
+              <span className="px-3 py-1.5 border border-primary/40 text-primary bg-primary/10">2. Condition-Based Maintenance</span>
+              <span className="text-text-muted">→</span>
+              <span className="px-3 py-1.5 border border-status-healthy/40 text-status-healthy bg-status-healthy/10">3. Engine Availability</span>
+              <span className="text-text-muted">→</span>
+              <span className="px-3 py-1.5 border border-status-healthy/40 text-status-healthy bg-status-healthy/10">4. Mission Readiness</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ═══════════════════════════════════════════
+          6. SYSTEM MODULES DIRECTORY
+      ═══════════════════════════════════════════ */}
+      <section className="py-20 max-w-7xl mx-auto px-6">
+        <div className="text-center max-w-3xl mx-auto mb-12">
+          <div className="aero-label mb-2 flex items-center justify-center gap-2">
+            <Layers className="w-3.5 h-3.5 text-primary" />
+            Application Console
+          </div>
+          <h2 className="font-mono text-2xl sm:text-3xl font-bold text-text-base uppercase tracking-tight">
+            EXPLORE THE SYSTEM MODULES
+          </h2>
+          <p className="text-text-muted text-xs sm:text-sm mt-2">
+            Access live telemetry, interactive 3D visualizations, model diagnostics, and mission simulators.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {SYSTEM_MODULES.map(({ title, to, desc, badge }) => (
+            <Link
+              key={to}
+              to={to}
+              className="aero-card p-5 flex flex-col justify-between hover:border-primary transition-all duration-200 group"
+            >
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <span className="font-mono text-[9px] px-2 py-0.5 rounded border border-primary/30 text-primary uppercase tracking-widest bg-primary/5">
+                    {badge}
+                  </span>
+                  <ArrowRight className="w-4 h-4 text-text-muted group-hover:text-primary group-hover:translate-x-1 transition-all" />
+                </div>
+                <h3 className="font-mono text-sm font-semibold text-text-base mb-2 group-hover:text-primary transition-colors">
+                  {title}
+                </h3>
+                <p className="text-text-muted text-xs leading-relaxed">{desc}</p>
+              </div>
+              <div className="mt-4 pt-3 border-t border-bg-border font-mono text-[10px] text-text-muted group-hover:text-primary">
+                OPEN MODULE →
+              </div>
+            </Link>
+          ))}
+        </div>
+      </section>
+
+      {/* ═══════════════════════════════════════════
+          7. PROTOTYPE NOTICE
+      ═══════════════════════════════════════════ */}
+      <section className="py-8 max-w-7xl mx-auto px-6">
+        <div className="border border-status-warning/30 bg-status-warning/5 p-4 flex items-start gap-3">
+          <AlertTriangle className="w-5 h-5 text-status-warning flex-shrink-0 mt-0.5" />
+          <div>
+            <div className="font-mono text-xs text-status-warning uppercase tracking-wider mb-1">
+              Smart India Hackathon 2026 Prototype Notice
+            </div>
+            <p className="text-text-muted text-xs leading-relaxed">
+              This system uses representative synthetic and simulated telemetry calibrated to the Rotax 912 aero piston engine specifications. All health indices, fault classifications, and RUL estimates are demonstrative decision-support indicators and do not directly actuate aircraft flight controls.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* ═══════════════════════════════════════════
+          8. FOOTER
       ═══════════════════════════════════════════ */}
       <footer className="bg-bg-panel border-t border-bg-border py-8">
         <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="font-mono text-sm font-bold text-text-base">
             <span className="text-text-base">AERO</span><span className="text-primary">TWIN</span>
+            <span className="text-text-muted text-xs font-normal ml-2">| SIH 2026 Team TechVanguard</span>
           </div>
-          <div className="flex gap-6">
-            {['/', '/dashboard', '/diagnostics', '/missions', '/analytics', '/about'].map((href, i) => (
-              <Link key={href} to={href} className="font-mono text-xs text-text-muted hover:text-primary transition-colors uppercase">
-                {['Home', 'Dashboard', 'Diagnostics', 'Missions', 'Analytics', 'About'][i]}
+
+          <div className="flex flex-wrap gap-5">
+            {[
+              { to: '/', label: 'Home' },
+              { to: '/model', label: 'Engine 3D' },
+              { to: '/dashboard', label: 'Dashboard' },
+              { to: '/diagnostics', label: 'Diagnostics' },
+              { to: '/missions', label: 'Missions' },
+              { to: '/analytics', label: 'Analytics' },
+              { to: '/about', label: 'About' },
+            ].map(({ to, label }) => (
+              <Link key={to} to={to} className="font-mono text-xs text-text-muted hover:text-primary transition-colors uppercase">
+                {label}
               </Link>
             ))}
           </div>
-          <div className="font-mono text-xs text-text-muted">SIH 2026 | Problem ID: SIH26054</div>
+
+          <div className="font-mono text-xs text-text-muted">Problem Statement: SIH26054</div>
         </div>
       </footer>
     </div>

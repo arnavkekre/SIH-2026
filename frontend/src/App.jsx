@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import TopNav from './components/layout/TopNav.jsx'
 import { TelemetryProvider } from './providers/TelemetryProvider.jsx'
 import Home from './pages/Home.jsx'
+import EngineModel from './pages/EngineModel.jsx'
 import Dashboard from './pages/Dashboard.jsx'
 import Diagnostics from './pages/Diagnostics.jsx'
 import Missions from './pages/Missions.jsx'
@@ -18,6 +19,7 @@ export default function App() {
           <main className="flex-1 pt-14">
             <Routes>
               <Route path="/" element={<Home />} />
+              <Route path="/model" element={<EngineModel />} />
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/diagnostics" element={<Diagnostics />} />
               <Route path="/missions" element={<Missions />} />

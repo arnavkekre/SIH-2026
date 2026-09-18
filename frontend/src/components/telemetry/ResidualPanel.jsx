@@ -76,8 +76,8 @@ export default function ResidualPanel({ hideHeader = false }) {
       <div className="flex flex-col divide-y divide-bg-border">
         {PARAMS.map(({ label, unit, telKey, expKey, resKey, warn, crit, prec }, idx) => {
           const actual   = telemetry?.[telKey]      ?? null
-          const expected = expectedValues?.[expKey] ?? null
           const residual = residuals?.[resKey]      ?? null
+          const expected = expectedValues?.[expKey] ?? (actual != null && residual != null ? actual - residual : null)
           const resClass = residualClass(residual, warn, crit)
           const resSign  = residual != null && residual >= 0 ? '+' : ''
 
@@ -90,7 +90,9 @@ export default function ResidualPanel({ hideHeader = false }) {
                 <span className="font-mono text-xs text-text-base">{label}</span>
                 <span className="font-mono text-[10px] text-text-muted">{unit}</span>
               </div>
-              <span className="font-mono text-xs text-text-muted">{fmt(expected, prec)}</span>
+              <span className={`font-mono text-xs ${expected != null ? 'text-text-base' : 'text-text-muted'}`}>
+                {fmt(expected, prec)}
+              </span>
               <span className={`font-mono text-xs ${actual != null ? 'text-text-base' : 'text-text-muted'}`}>
                 {fmt(actual, prec)}
               </span>

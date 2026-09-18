@@ -20,7 +20,7 @@ function fmt(val, d = 1) {
 export default function Dashboard() {
   const {
     connectionStatus, engineId, missionId, missionPhase, timestampS,
-    telemetry, residuals, healthScore, healthStatus, fault,
+    telemetry, expectedValues, residuals, healthScore, healthStatus, fault,
     anomalyScore, rul, replay, telemetryHistory, anomalyHistory,
   } = useAeroStore()
 
@@ -87,15 +87,15 @@ export default function Dashboard() {
 
           <div className="aero-title text-[10px] mt-1">PRIMARY TELEMETRY</div>
           <TelemetryCard label="RPM"     value={fmt(telemetry.rpm, 0)}  unit="rpm"  historyData={rpmHistory}
-            expected={fmt(useAeroStore.getState().expectedValues?.expected_rpm, 0)}
+            expected={fmt(expectedValues?.expected_rpm, 0)}
             residual={residuals?.residual_rpm}
             thresholds={{ warn: 50, crit: 150 }} precision={0} />
           <TelemetryCard label="CHT"     value={fmt(telemetry.cht_c)}   unit="°C"  historyData={chtHistory}
-            expected={fmt(useAeroStore.getState().expectedValues?.expected_cht_c)}
+            expected={fmt(expectedValues?.expected_cht_c)}
             residual={residuals?.residual_cht_c}
             thresholds={{ warn: 10, crit: 25 }} />
           <TelemetryCard label="EGT"     value={fmt(telemetry.egt_c, 0)} unit="°C" historyData={egtHistory}
-            expected={fmt(useAeroStore.getState().expectedValues?.expected_egt_c, 0)}
+            expected={fmt(expectedValues?.expected_egt_c, 0)}
             residual={residuals?.residual_egt_c}
             thresholds={{ warn: 20, crit: 50 }} precision={0} />
         </div>
@@ -159,17 +159,22 @@ export default function Dashboard() {
             <div className="aero-title text-[10px]">SECONDARY TELEMETRY</div>
             <div className="grid grid-cols-2 gap-2">
               <TelemetryCard label="OIL PRESS" value={fmt(telemetry.oil_pressure_kpa, 0)} unit="kPa" historyData={oilPHistory}
+                expected={fmt(expectedValues?.expected_oil_pressure_kpa, 0)}
                 residual={residuals?.residual_oil_pressure_kpa} thresholds={{ warn: 20, crit: 50 }} precision={0} />
               <TelemetryCard label="OIL TEMP"  value={fmt(telemetry.oil_temperature_c)}  unit="°C"  historyData={oilTHistory}
+                expected={fmt(expectedValues?.expected_oil_temperature_c)}
                 residual={residuals?.residual_oil_temperature_c} thresholds={{ warn: 5, crit: 15 }} />
               <TelemetryCard label="FUEL FLOW" value={fmt(telemetry.fuel_flow_lph)}       unit="L/h" historyData={fuelHistory}
+                expected={fmt(expectedValues?.expected_fuel_flow_lph, 2)}
                 residual={residuals?.residual_fuel_flow_lph} thresholds={{ warn: 1, crit: 3 }} />
               <TelemetryCard label="VIBRATION" value={fmt(telemetry.vibration_g, 3)}      unit="G"   historyData={vibHistory}
+                expected={fmt(expectedValues?.expected_vibration_g, 3)}
                 residual={residuals?.residual_vibration_g} thresholds={{ warn: 0.05, crit: 0.15 }} precision={3} />
             </div>
             <TelemetryCard label="ALTERNATOR" value={fmt(telemetry.alternator_voltage_v)} unit="V"  historyData={[]} thresholds={{ warn: 1, crit: 3 }} />
             <TelemetryCard label="BATTERY"    value={fmt(telemetry.battery_voltage_v)}   unit="V"   historyData={[]} thresholds={{ warn: 0.5, crit: 2 }} />
             <TelemetryCard label="INJ TIMING" value={fmt(telemetry.injection_timing_deg)} unit="°" historyData={[]}
+              expected={fmt(expectedValues?.expected_injection_timing_deg, 2)}
               residual={residuals?.residual_injection_timing_deg} thresholds={{ warn: 1, crit: 3 }} />
           </div>
         </div>
