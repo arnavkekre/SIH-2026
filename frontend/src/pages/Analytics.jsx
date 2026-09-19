@@ -44,14 +44,10 @@ export default function Analytics() {
   const {
     telemetryHistory, anomalyHistory, healthHistory, faultHistory,
   } = useAeroStore()
-
-  // ── Session summary
   const totalPoints   = telemetryHistory.length
   const peakAnomaly   = useMemo(() => Math.max(0, ...anomalyHistory.map(p => p.anomalyScore ?? 0)), [anomalyHistory])
   const lowestHealth  = useMemo(() => Math.min(100, ...healthHistory.map(p => p.healthScore ?? 100)), [healthHistory])
   const activeFaults  = useMemo(() => faultHistory.filter(p => p.active).length, [faultHistory])
-
-  // ── Chart data
   const healthData    = useMemo(() => healthHistory.map((p, i) => ({ i, t: fmt(p.timestampS, 0), score: p.healthScore })), [healthHistory])
   const anomalyData   = useMemo(() => anomalyHistory.map((p, i) => ({ i, t: fmt(p.timestampS, 0), score: p.anomalyScore })), [anomalyHistory])
   const rpmData       = useMemo(() => telemetryHistory.map((p, i) => ({ i, t: fmt(p.timestampS, 0), v: p.rpm })), [telemetryHistory])
@@ -71,7 +67,6 @@ export default function Analytics() {
     <div className="min-h-screen bg-bg-base py-6">
       <div className="max-w-7xl mx-auto px-6">
 
-        {/* ── HEADER ── */}
         <div className="mb-6">
           <div className="aero-label mb-1">Engineering Analysis</div>
           <h1 className="font-mono text-2xl font-bold text-text-base">ANALYTICS</h1>
@@ -81,7 +76,6 @@ export default function Analytics() {
           </p>
         </div>
 
-        {/* ── SESSION SUMMARY ── */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
           {[
             { label: 'Data Points',     value: totalPoints.toString(),      color: '#00F0FF', sub: 'this session' },
@@ -96,8 +90,6 @@ export default function Analytics() {
             </div>
           ))}
         </div>
-
-        {/* ── HEALTH TREND ── */}
         <div className="aero-panel p-4 mb-4">
           <div className="aero-title mb-3">Health Score Trend</div>
           {healthData.length > 1 ? (
@@ -133,8 +125,6 @@ export default function Analytics() {
             </div>
           )}
         </div>
-
-        {/* ── ANOMALY + FAULT DIST ── */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
 
           <div className="aero-panel p-4">
@@ -182,8 +172,6 @@ export default function Analytics() {
             )}
           </div>
         </div>
-
-        {/* ── PARAMETER TRENDS ── */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
           <div className="aero-panel p-4">
             <div className="aero-title mb-3">RPM Trend</div>
@@ -217,8 +205,6 @@ export default function Analytics() {
             )}
           </div>
         </div>
-
-        {/* ── PLACEHOLDER PANELS ── */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <PlaceholderPanel
             title="MULTI-MISSION HEALTH COMPARISON"
